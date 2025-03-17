@@ -1,0 +1,92 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="max-w-3xl mx-auto">
+  <h2 class="text-2xl font-bold mb-6">ログの詳細</h2>
+
+  <table class="w-full mb-6 text-left border border-gray-200 rounded-lg overflow-hidden">
+    <tbody>
+      <tr class="bg-gray-100">
+        <th class="p-3 font-semibold">記録日</th>
+        <td class="p-3">{{ log.date|date:"Y年m月d日" }}</td>
+      </tr>
+      <tr>
+        <th class="p-3 font-semibold">入眠時間</th>
+        <td class="p-3">{% if log.sleep_time %}{{ log.sleep_time|date:"Y/m/d H:i" }}{% else %}-{% endif %}</td>
+      </tr>
+      <tr class="bg-gray-100">
+        <th class="p-3 font-semibold">起床時間</th>
+        <td class="p-3">{% if log.wakeup_time %}{{ log.wakeup_time|date:"Y/m/d H:i" }}{% else %}-{% endif %}</td>
+      </tr>
+      <tr>
+        <th class="p-3 font-semibold">睡眠時間</th>
+        <td class="p-3">{% if sleep_duration_str %}{{ sleep_duration_str }}{% else %}-{% endif %}</td>
+      </tr>
+      <tr class="bg-gray-100">
+        <th class="p-3 font-semibold">気分</th>
+        <td class="p-3">
+          {% if log.mood == 10 %}😃
+          {% elif log.mood >= 8 %}😊
+          {% elif log.mood >= 6 %}😐
+          {% elif log.mood >= 4 %}😞
+          {% else %}😢
+          {% endif %} ({{ log.mood }})
+        </td>
+      </tr>
+      <tr>
+        <th class="p-3 font-semibold">ログメモ</th>
+        <td class="p-3">{{ log.log_text }}</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <button onclick="document.getElementById('edit-form').classList.remove('pointer-events-none', 'opacity-50'); this.disabled = true;" class="bg-yellow-500 hover:bg-yellow-600 text-white font-semibold py-2 px-4 rounded mb-4">
+    編集する
+  </button>
+
+  <form id="edit-form" action="{% url 'logs:update' log.id %}" method="post" class="pointer-events-none opacity-50 mb-4 space-y-4 bg-white p-4 rounded shadow">
+    {% csrf_token %}
+    <h3 class="text-xl font-semibold">編集フォーム</h3>
+
+    <div>
+      <label for="date" class="block font-medium">記録日:</label>
+      <input type="date" id="date" name="date" value="{{ today|date:'Y-m-d' }}" class="mt-1 p-2 border rounded w-full">
+    </div>
+
+    <div>
+      <label for="log_text" class="block font-medium">ログ:</label>
+      <textarea id="log_text" name="log_text" rows="3" class="mt-1 p-2 border rounded w-full">{{ log.log_text }}</textarea>
+    </div>
+
+    <div>
+      <label for="sleep_time" class="block font-medium">入眠時間:</label>
+      <input type="datetime-local" id="sleep_time" name="sleep_time" value="{{ log.sleep_time|date:'Y-m-d\\TH:i' }}" class="mt-1 p-2 border rounded w-full">
+    </div>
+
+    <div>
+      <label for="wakeup_time" class="block font-medium">起床時間:</label>
+      <input type="datetime-local" id="wakeup_time" name="wakeup_time" value="{{ log.wakeup_time|date:'Y-m-d\\TH:i' }}" class="mt-1 p-2 border rounded w-full">
+    </div>
+
+    <div>
+      <label class="block font-medium">気分:</label>
+      <div class="flex flex-wrap gap-2 mt-1">
+        {% for i in "0123456789"|make_list %}
+          <label>
+            <input type="radio" id="mood{{ i }}" name="mood" value="{{ i }}" {% if log.mood == i|add:0 %}checked{% endif %}>
+            {{ i }}
+          </label>
+        {% endfor %}
+      </div>
+    </div>
+
+    <button type="submit" class="bg-blue-500 hover:bg-blue-600 text-white font-semibold py-2 px-4 rounded">保存</button>
+  </form>
+
+  <form action="{% url 'logs:delete' log.id %}" method="get" class="mb-4" onsubmit="return confirm('本当に削除しますか？');">
+    {% csrf_token %}
+    <button type="submit" class="bg-red-500 hover:bg-red-600 text-white font-semibold py-2 px-4 rounded">削除</button>
+  </form>
+
+  <a href="{% url 'logs:index' %}" class="text-blue-500 hover:underline">← 一覧に戻る</a>
+</div>
+{% endblock %}

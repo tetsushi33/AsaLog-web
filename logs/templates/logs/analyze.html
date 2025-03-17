@@ -1,0 +1,84 @@
+{% extends "base.html" %}
+{% block content %}
+<div>
+  <header class="mb-8">
+    <h2 class="text-3xl font-bold flex items-center space-x-2">
+      <svg class="w-8 h-8 text-green-500"><!-- アイコン --></svg>
+      <span>Sleep Analysis</span>
+    </h2>
+    <p class="text-gray-600 mt-2">Overview of your sleep patterns based on your logs.</p>
+  </header>
+
+  <!-- 平均/最長/最短 -->
+  <section class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-10">
+    <div class="bg-white p-6 rounded-lg shadow">
+      <h3 class="text-lg font-semibold flex items-center">
+        <span class="ml-2 text-yellow-500">🌞</span> Average Sleep
+      </h3>
+      <p class="mt-4 text-3xl font-bold text-gray-800">{{ average_duration }} h</p>
+    </div>
+    <div class="bg-white p-6 rounded-lg shadow">
+      <h3 class="text-lg font-semibold flex items-center">
+        <span class="ml-2 text-blue-500">🌛</span> Longest Sleep
+      </h3>
+      <p class="mt-4 text-3xl font-bold text-gray-800">{{ longest_duration }} h</p>
+    </div>
+    <div class="bg-white p-6 rounded-lg shadow">
+      <h3 class="text-lg font-semibold flex items-center">
+        <span class="ml-2 text-indigo-500">🌙</span> Shortest Sleep
+      </h3>
+      <p class="mt-4 text-3xl font-bold text-gray-800">{{ shortest_duration }} h</p>
+    </div>
+  </section>
+
+  <!-- ログ一覧 -->
+  <section>
+    <h3 class="text-2xl font-bold mb-4">Sleep Log History</h3>
+    <table class="w-full bg-white rounded-lg shadow">
+      <thead class="bg-gray-100">
+        <tr>
+          <th class="px-4 py-2 text-left">Date</th>
+          <th class="px-4 py-2 text-left">Sleep Time</th>
+          <th class="px-4 py-2 text-left">Wake Time</th>
+          <th class="px-4 py-2 text-left">Duration (h)</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for log in logs %}
+        <tr class="border-b hover:bg-gray-50">
+          <td class="px-4 py-2">{{ log.date }}</td>
+          <td class="px-4 py-2">{{ log.sleep_time|date:"H:i" }}</td>
+          <td class="px-4 py-2">{{ log.wakeup_time|date:"H:i" }}</td>
+          <td class="px-4 py-2">{{ log.duration_hours|floatformat:2 }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </section>
+
+</div>
+
+<!-- Chart.js スクリプト（任意） -->
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+  const ctx = document.getElementById('trendChart').getContext('2d');
+  const trendChart = new Chart(ctx, {
+    type: 'bar',
+    data: {
+      labels: [{% for log in logs %}'{{ log.date|date:"m/d" }}',{% endfor %}],
+      datasets: [{
+        label: 'Sleep Duration (hrs)',
+        data: [{% for log in logs %}{{ log.sleep_duration|floatformat:2 }},{% endfor %}],
+        backgroundColor: 'rgba(59, 130, 246, 0.5)',
+        borderColor: 'rgba(59, 130, 246, 1)',
+        borderWidth: 1
+      }]
+    },
+    options: {
+      scales: {
+        y: { beginAtZero: true }
+      }
+    }
+  });
+</script>
+{% endblock %}

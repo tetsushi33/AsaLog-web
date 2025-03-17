@@ -1,0 +1,33 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="max-w-4xl mx-auto">
+  <h1 class="text-3xl font-bold mb-4 text-indigo-700 flex items-center gap-2">
+    📋 ログ一覧
+  </h1>
+  <p class="text-gray-600 mb-6">過去の記録を確認しよう</p>
+
+  {% if latest_log_list %}
+    <ul class="space-y-4 mb-8">
+      {% for log in latest_log_list %}
+        <li class="bg-white p-4 rounded-lg shadow hover:shadow-md transition duration-300">
+          <a href="{% url 'logs:detail' log.id %}" class="flex justify-between items-center">
+            <span class="text-lg font-semibold text-indigo-600">📅 {{ log.date|date:"Y年m月d日" }}</span>
+            <span class="text-sm text-gray-500 hover:underline">詳細を見る →</span>
+          </a>
+        </li>
+      {% endfor %}
+    </ul>
+  {% else %}
+    <p class="text-red-500">まだログが登録されていません。</p>
+  {% endif %}
+
+  <div class="flex gap-4">
+    <a href="{% url 'logs:create' %}" class="bg-blue-500 hover:bg-blue-600 text-white font-semibold py-2 px-4 rounded shadow">
+      ✏️ 新規作成
+    </a>
+    <a href="{% url 'logs:analyze' %}" class="bg-green-500 hover:bg-green-600 text-white font-semibold py-2 px-4 rounded shadow">
+      📊 分析ページへ
+    </a>
+  </div>
+</div>
+{% endblock %}
