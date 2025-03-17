@@ -6,13 +6,17 @@ from django.utils.dateparse import parse_datetime
 from django.utils import timezone
 from django.db.models import Avg, Max, Min
 import json
-
+from django.core.serializers.json import DjangoJSONEncoder
 
 def index(request):
     latest_log_list = Log.objects.order_by("-date")
     template = loader.get_template("logs/index.html")
     context = {
-        "latest_log_list": latest_log_list
+        "latest_log_list_json": json.dumps([
+            {"id": log.id, "date": str(log.date), "log_text": log.log_text}
+            for log in latest_log_list
+        ], cls=DjangoJSONEncoder),
+        "latest_log_list": latest_log_list,
     }
     return HttpResponse(template.render(context, request))
 

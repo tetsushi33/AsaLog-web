@@ -1,27 +1,27 @@
 {% extends "base.html" %}
 {% block content %}
 <div class="max-w-4xl mx-auto">
-  <h1 class="text-3xl font-bold mb-4 text-indigo-700 flex items-center gap-2">
-    📋 ログ一覧
+  <h1 class="text-3xl font-bold mb-6 text-indigo-700 flex items-center gap-2">
+    ログカレンダー
   </h1>
-  <p class="text-gray-600 mb-6">過去の記録を確認しよう</p>
 
-  {% if latest_log_list %}
-    <ul class="space-y-4 mb-8">
-      {% for log in latest_log_list %}
-        <li class="bg-white p-4 rounded-lg shadow hover:shadow-md transition duration-300">
-          <a href="{% url 'logs:detail' log.id %}" class="flex justify-between items-center">
-            <span class="text-lg font-semibold text-indigo-600">📅 {{ log.date|date:"Y年m月d日" }}</span>
-            <span class="text-sm text-gray-500 hover:underline">詳細を見る →</span>
-          </a>
-        </li>
-      {% endfor %}
-    </ul>
-  {% else %}
-    <p class="text-red-500">まだログが登録されていません。</p>
-  {% endif %}
+  <div class="mb-6">
+    <label for="monthSelect" class="block text-sm font-medium text-gray-700 mb-1">月を選択：</label>
+    <input type="month" id="monthSelect" class="border rounded px-3 py-2" onchange="filterCalendarByMonth(this.value)">
+  </div>
 
-  <div class="flex gap-4">
+  <div id="calendarGrid" class="grid grid-cols-7 gap-px border bg-gray-300 rounded overflow-hidden">
+    <div class="bg-gray-100 py-2 font-semibold text-center">日</div>
+    <div class="bg-gray-100 py-2 font-semibold text-center">月</div>
+    <div class="bg-gray-100 py-2 font-semibold text-center">火</div>
+    <div class="bg-gray-100 py-2 font-semibold text-center">水</div>
+    <div class="bg-gray-100 py-2 font-semibold text-center">木</div>
+    <div class="bg-gray-100 py-2 font-semibold text-center">金</div>
+    <div class="bg-gray-100 py-2 font-semibold text-center">土</div>
+    <!-- カレンダー日付セルがJavaScriptで描画されます -->
+  </div>
+
+  <div class="mt-6 flex gap-4">
     <a href="{% url 'logs:create' %}" class="bg-blue-500 hover:bg-blue-600 text-white font-semibold py-2 px-4 rounded shadow">
       ✏️ 新規作成
     </a>
@@ -30,4 +30,63 @@
     </a>
   </div>
 </div>
+
+<script>
+  const logs = JSON.parse('{{ latest_log_list_json|escapejs }}');
+
+  function renderCalendar(year, month) {
+    const firstDay = new Date(year, month, 1);
+    const lastDay = new Date(year, month + 1, 0);
+    const startWeekDay = firstDay.getDay();
+    const totalDays = lastDay.getDate();
+
+    const calendarGrid = document.getElementById("calendarGrid");
+
+    // 以前のセルをクリア（ヘッダーを除く）
+    const children = Array.from(calendarGrid.children);
+    children.slice(7).forEach(e => e.remove());
+    
+    // 空白セル挿入
+    for (let i = 0; i < startWeekDay; i++) {
+      const emptyCell = document.createElement("div");
+      emptyCell.className = "bg-white h-24";
+      calendarGrid.appendChild(emptyCell);
+    }
+
+    // 日付セル挿入
+    for (let day = 1; day <= totalDays; day++) {
+      const cellDate = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+      const log = logs.find(l => l.date === cellDate);
+
+      const cell = document.createElement("div");
+      cell.className = "bg-white h-24 p-2 text-sm text-left calendar-cell border hover:bg-blue-50";
+
+      const dateLabel = document.createElement("div");
+      dateLabel.className = "font-semibold mb-1";
+      dateLabel.textContent = day;
+      cell.appendChild(dateLabel);
+
+      if (log) {
+        const link = document.createElement("a");
+        link.href = `/logs/${log.id}/`;
+        link.className = "block text-blue-600 hover:underline";
+        link.textContent = log.log_text || "（メモなし）";
+        cell.appendChild(link);
+      }
+
+      calendarGrid.appendChild(cell);
+    }
+  }
+
+  function filterCalendarByMonth(value) {
+    const [year, month] = value.split("-").map(Number);
+    renderCalendar(year, month - 1);
+  }
+
+  document.addEventListener("DOMContentLoaded", () => {
+    const today = new Date();
+    document.getElementById("monthSelect").value = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}`;
+    renderCalendar(today.getFullYear(), today.getMonth());
+  });
+</script>
 {% endblock %}
