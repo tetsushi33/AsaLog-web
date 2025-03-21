@@ -84,6 +84,14 @@ def analyze(request):
         "average_duration": average_duration,
         "longest_duration": longest_duration,
         "shortest_duration": shortest_duration,
+        "latest_log_list_json": json.dumps([
+            {
+                "date": str(log.date),
+                "sleep_time": log.sleep_time.isoformat() if log.sleep_time else None,
+                "wakeup_time": log.wakeup_time.isoformat() if log.wakeup_time else None
+            }
+            for log in logs
+        ], cls=DjangoJSONEncoder)
     }
     return render(request, "logs/analyze.html", context)
 
