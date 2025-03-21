@@ -56,29 +56,58 @@
     </table>
   </section>
 
+    <!-- 睡眠時間帯可視化グラフ -->
+    <section class="mb-12">
+        <h3 class="text-2xl font-bold mb-4">📊 睡眠時間帯可視化</h3>
+        <div id="sleepBarContainer" class="flex flex-col gap-4"></div>
+    </section>
+
 </div>
 
-<!-- Chart.js スクリプト（任意） -->
-<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <script>
-  const ctx = document.getElementById('trendChart').getContext('2d');
-  const trendChart = new Chart(ctx, {
-    type: 'bar',
-    data: {
-      labels: [{% for log in logs %}'{{ log.date|date:"m/d" }}',{% endfor %}],
-      datasets: [{
-        label: 'Sleep Duration (hrs)',
-        data: [{% for log in logs %}{{ log.sleep_duration|floatformat:2 }},{% endfor %}],
-        backgroundColor: 'rgba(59, 130, 246, 0.5)',
-        borderColor: 'rgba(59, 130, 246, 1)',
-        borderWidth: 1
-      }]
-    },
-    options: {
-      scales: {
-        y: { beginAtZero: true }
-      }
+    const logs = JSON.parse('{{ latest_log_list_json|escapejs }}');
+  
+    function getMinutes(datetimeStr) {
+      const date = new Date(datetimeStr);
+      return date.getHours() * 60 + date.getMinutes();
     }
-  });
-</script>
+  
+    function renderSleepBars() {
+      const container = document.getElementById("sleepBarContainer");
+      container.innerHTML = "";
+  
+      const baseTime = 20 * 60; // 20:00 in minutes
+      const totalRange = (24 + 12) * 60 - baseTime; // 20:00 to 12:00 next day
+  
+      logs.forEach(log => {
+        if (!log.sleep_time || !log.wakeup_time) return;
+  
+        const sleepStart = getMinutes(log.sleep_time);
+        let wakeupTime = getMinutes(log.wakeup_time);
+        if (wakeupTime < sleepStart) wakeupTime += 24 * 60; // 翌日にまたがる対応
+  
+        const offset = sleepStart - baseTime;
+        const duration = wakeupTime - sleepStart;
+        const leftPercent = (offset / totalRange) * 100;
+        const widthPercent = (duration / totalRange) * 100;
+  
+        const wrapper = document.createElement("div");
+        wrapper.innerHTML = `
+          <div class="mb-1 text-sm font-medium text-gray-700">
+            ${log.date} (${log.sleep_time.slice(11, 16)} - ${log.wakeup_time.slice(11, 16)})
+          </div>
+          <div class="relative h-6 bg-gray-100 rounded">
+            <div class="absolute h-6 bg-blue-500 rounded"
+              style="left: ${leftPercent}%; width: ${widthPercent}%;">
+            </div>
+          </div>
+        `;
+        container.appendChild(wrapper);
+      });
+    }
+  
+    document.addEventListener("DOMContentLoaded", () => {
+      renderSleepBars();
+    });
+  </script>
 {% endblock %}
