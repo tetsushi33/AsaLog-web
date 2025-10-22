@@ -13,7 +13,7 @@ def index(request):
     template = loader.get_template("logs/index.html")
     context = {
         "latest_log_list_json": json.dumps([
-            {"id": log.id, "date": str(log.date), "log_text": log.log_text}
+            {"id": log.id, "date": str(log.date)}
             for log in latest_log_list
         ], cls=DjangoJSONEncoder),
         "latest_log_list": latest_log_list,
@@ -29,18 +29,23 @@ def detail(request, log_id):
         hours = int(total_seconds // 3600)
         minutes = int((total_seconds % 3600) // 60)
         sleep_duration_str = f"{hours}時間 {minutes}分"
-    return render(request, "logs/detail.html", {"log": log, "sleep_duration_str": sleep_duration_str})
+    return render(request, "logs/detail.html", {"log": log, "sleep_duration_str": sleep_duration_str, "mood_scale": range(1, 11)})
 
 
 def update_log(request, log_id):
     log = get_object_or_404(Log, id=log_id)
 
     if request.method == "POST":
-        log.date = parse_datetime(request.POST.get("date")) or log.date
-        log.log_text = request.POST.get("log_text", "")
+        log.updated_at = timezone.now()
+        log.good_1 = request.POST.get("good_1", "").strip()
+        log.good_2 = request.POST.get("good_2", "").strip()
+        log.good_3 = request.POST.get("good_3", "").strip()
+        log.growth = request.POST.get("growth", "").strip()
         log.sleep_time = parse_datetime(request.POST.get("sleep_time")) or log.sleep_time
         log.wakeup_time = parse_datetime(request.POST.get("wakeup_time")) or log.wakeup_time
         log.mood = int(request.POST.get("mood", log.mood))
+    
+        log.comment = request.POST.get("comment", "")
 
         # sleep_duration を自動更新
         if log.sleep_time and log.wakeup_time:
@@ -98,27 +103,50 @@ def analyze(request):
 
 def create_log(request):
     if request.method == "POST":
-        date = request.POST.get("date") or timezone.now().date()
-        log_text = request.POST.get("log_text", "").strip()
-        sleep_time = parse_datetime(request.POST.get("sleep_time")) or None
-        wakeup_time = parse_datetime(request.POST.get("wakeup_time")) or None
-        mood = int(request.POST.get("mood", 5))
+        # テキスト系
+        good_1 = (request.POST.get("good_1") or "").strip()
+        good_2 = (request.POST.get("good_2") or "").strip()
+        good_3 = (request.POST.get("good_3") or "").strip()
+        growth = (request.POST.get("growth") or "").strip()
 
-        sleep_duration = None
-        if sleep_time and wakeup_time:
-            sleep_duration = wakeup_time - sleep_time
+        # 気分（1〜10）
+        try:
+            mood = int(request.POST.get("mood", 5))
+        except (TypeError, ValueError):
+            mood = 5
 
-        log = Log.objects.create(
-            date=date,
-            log_text=log_text,
+        # datetime-local → Python datetime（アウェア化）
+        def parse_dt(name):
+            v = request.POST.get(name)
+            if not v:
+                return None
+            dt = parse_datetime(v)  # "YYYY-MM-DDTHH:MM"
+            if dt and timezone.is_naive(dt):
+                dt = timezone.make_aware(dt, timezone.get_current_timezone())
+            return dt
+
+        sleep_time = parse_dt("sleep_time")
+        wakeup_time = parse_dt("wakeup_time")
+
+        # date はモデルの default=timezone.localdate に任せる
+        log = Log(
+            good_1=good_1,
+            good_2=good_2,
+            good_3=good_3,
+            growth=growth,
+            mood=mood,
             sleep_time=sleep_time,
             wakeup_time=wakeup_time,
-            mood=mood,
-            sleep_duration=sleep_duration
         )
+        # sleep_duration は models.Log.save() で自動計算される
+        log.save()
+
         return redirect("logs:index")
 
-    return render(request, "logs/create_log.html")
+    # GET: 1..10 のスケールをテンプレに渡す
+    return render(request, "logs/create_log.html", {
+        "mood_scale": range(1, 11),
+    })
 
 
 def delete_log(request, log_id):

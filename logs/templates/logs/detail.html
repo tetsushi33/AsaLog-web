@@ -1,79 +1,206 @@
 {% extends "base.html" %}
+{% load static %}
 {% block content %}
 <div class="max-w-3xl mx-auto">
   <h2 class="text-2xl font-bold mb-6">ログの詳細</h2>
 
-  <table class="w-full mb-6 text-left border border-gray-200 rounded-lg overflow-hidden">
-    <tbody>
-      <tr class="bg-gray-100">
-        <th class="p-3 font-semibold">記録日</th>
-        <td class="p-3">{{ log.date|date:"Y年m月d日" }}</td>
-      </tr>
-      <tr>
-        <th class="p-3 font-semibold">入眠時間</th>
-        <td class="p-3">{% if log.sleep_time %}{{ log.sleep_time|date:"Y/m/d H:i" }}{% else %}-{% endif %}</td>
-      </tr>
-      <tr class="bg-gray-100">
-        <th class="p-3 font-semibold">起床時間</th>
-        <td class="p-3">{% if log.wakeup_time %}{{ log.wakeup_time|date:"Y/m/d H:i" }}{% else %}-{% endif %}</td>
-      </tr>
-      <tr>
-        <th class="p-3 font-semibold">睡眠時間</th>
-        <td class="p-3">{% if sleep_duration_str %}{{ sleep_duration_str }}{% else %}-{% endif %}</td>
-      </tr>
-      <tr class="bg-gray-100">
-        <th class="p-3 font-semibold">気分</th>
-        <td class="p-3">
-          {% if log.mood == 10 %}😃
-          {% elif log.mood >= 8 %}😊
-          {% elif log.mood >= 6 %}😐
-          {% elif log.mood >= 4 %}😞
-          {% else %}😢
-          {% endif %} ({{ log.mood }})
-        </td>
-      </tr>
-      <tr>
-        <th class="p-3 font-semibold">ログメモ</th>
-        <td class="p-3">{{ log.log_text }}</td>
-      </tr>
-    </tbody>
-  </table>
+  {# 1) 日付 + 最終更新（カード） #}
+  <div class="mb-6 rounded-lg border bg-white p-4 shadow">
+    <h3 class="mb-2 text-lg font-semibold">日付</h3>
+    <div class="text-gray-800">
+      <div class="text-xl font-semibold">{{ log.date|date:"Y年m月d日" }}</div>
+      <div class="text-sm text-gray-500 mt-1">最終更新: {{ log.updated_at|date:"Y/m/d H:i" }}</div>
+    </div>
+  </div>
 
-  <button onclick="document.getElementById('edit-form').classList.remove('pointer-events-none', 'opacity-50'); this.disabled = true;" class="bg-yellow-500 hover:bg-yellow-600 text-white font-semibold py-2 px-4 rounded mb-4">
+  {# 2) 睡眠時間（既存のまま） #}
+  {% if log.sleep_time and log.wakeup_time %}
+  <div class="mb-6 rounded-lg border bg-white p-4 shadow">
+    <h3 class="mb-3 text-lg font-semibold">睡眠時間</h3>
+    <div class="flex flex-col sm:flex-row items-center gap-4">
+      <!-- SVG 時計 -->
+      <svg id="sleepClock"
+           width="265" height="220" viewBox="0 0 220 220"
+           class="shrink-0"
+           data-sleep-h="{{ log.sleep_time|date:'H' }}"
+           data-sleep-m="{{ log.sleep_time|date:'i' }}"
+           data-wake-h="{{ log.wakeup_time|date:'H' }}"
+           data-wake-m="{{ log.wakeup_time|date:'i' }}">
+        <!-- 外枠（少し濃い） -->
+        <circle cx="110" cy="110" r="90" fill="white" stroke="#9ca3af" stroke-width="2"/>
+        <!-- 睡眠区間の弧（JSで描画） -->
+        <path id="sleepArc" fill="none" stroke="#4f46e5" stroke-width="18" stroke-linecap="round"/>
+        <!-- 始点/終点 -->
+        <circle id="startDot" r="5" fill="#4f46e5"/>
+        <circle id="endDot" r="5" fill="#4f46e5"/>
+        <!-- 方角ラベル（文字大きめ＆6:00を少し右へ） -->
+        <text x="110" y="18"  text-anchor="middle" font-size="15" fill="#374151">0:00</text>
+        <text x="110" y="212" text-anchor="middle" font-size="15" fill="#374151">12:00</text>
+        <text x="206" y="114" text-anchor="middle" font-size="15" fill="#374151">6:00</text>
+        <text x="20"  y="114" text-anchor="middle" font-size="15" fill="#374151">18:00</text>
+      </svg>
+
+      <!-- テキスト要約 -->
+      <div class="text-2xl text-gray-800">
+        <div class="mb-1"><span class="text-gray-800">入眠時間:</span> {{ log.sleep_time|date:"m/d H:i" }}</div>
+        <div class="mb-1"><span class="text-gray-800">起床時間:</span> {{ log.wakeup_time|date:"m/d H:i" }}</div>
+        <div><span class="text-gray-800">睡眠時間:</span> {% if sleep_duration_str %}{{ sleep_duration_str }}{% else %}-{% endif %}</div>
+      </div>
+    </div>
+  </div>
+  {% endif %}
+
+  {# 3) 今日の良かったこと（親カード内に3カード横並び） #}
+  <div class="mb-6 rounded-lg border bg-white p-4 shadow">
+    <h3 class="mb-3 text-lg font-semibold">今日の良かったこと</h3>
+
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-3 items-stretch">
+      <!-- ① -->
+      <div class="rounded-lg border bg-gray-50 p-4 shadow-sm">
+        {% if log.good_1 %}
+          <div class="text-gray-800 whitespace-pre-wrap">{{ log.good_1 }}</div>
+        {% else %}
+          <div class="text-gray-400">（未入力）</div>
+        {% endif %}
+      </div>
+
+      <!-- ② -->
+      <div class="rounded-lg border bg-gray-50 p-4 shadow-sm">
+        {% if log.good_2 %}
+          <div class="text-gray-800 whitespace-pre-wrap">{{ log.good_2 }}</div>
+        {% else %}
+          <div class="text-gray-400">（未入力）</div>
+        {% endif %}
+      </div>
+
+      <!-- ③ -->
+      <div class="rounded-lg border bg-gray-50 p-4 shadow-sm">
+        {% if log.good_3 %}
+          <div class="text-gray-800 whitespace-pre-wrap">{{ log.good_3 }}</div>
+        {% else %}
+          <div class="text-gray-400">（未入力）</div>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+
+  {# 4) 昨日から成長した点（単体カード） #}
+  <div class="mb-6 rounded-lg border bg-white p-4 shadow">
+    <h3 class="mb-2 text-lg font-semibold">昨日から成長した点</h3>
+    {% if log.growth %}
+      <div class="text-gray-800 whitespace-pre-wrap">{{ log.growth }}</div>
+    {% else %}
+      <div class="text-gray-400">（未入力）</div>
+    {% endif %}
+  </div>
+
+  {# 5) 気分（値に応じて色が変化するメーター） #}
+  <div class="mb-8 rounded-lg border bg-white p-4 shadow">
+    <h3 class="mb-3 text-lg font-semibold">気分</h3>
+
+    <div class="flex flex-col items-center gap-3">
+      <!-- 10マスのメーター -->
+      <div class="w-full flex flex-col items-center">
+        <div class="flex w-full gap-1">
+          {% for i in mood_scale %}
+            {% if i <= log.mood %}
+              {% if i == 1 %}
+                <div class="flex-1 h-5 rounded" style="background-color:hsl(140, 70%, 88%);"></div>
+              {% elif i == 2 %}
+                <div class="flex-1 h-5 rounded" style="background-color:hsl(140, 70%, 85%);"></div>
+              {% elif i == 3 %}
+                <div class="flex-1 h-5 rounded" style="background-color:hsl(140, 70%, 81%);"></div>
+              {% elif i == 4 %}
+                <div class="flex-1 h-5 rounded" style="background-color:hsl(140, 70%, 78%);"></div>
+              {% elif i == 5 %}
+                <div class="flex-1 h-5 rounded" style="background-color:hsl(140, 70%, 74%);"></div>
+              {% elif i == 6 %}
+                <div class="flex-1 h-5 rounded" style="background-color:hsl(140, 70%, 70%);"></div>
+              {% elif i == 7 %}
+                <div class="flex-1 h-5 rounded" style="background-color:hsl(140, 70%, 65%);"></div>
+              {% elif i == 8 %}
+                <div class="flex-1 h-5 rounded" style="background-color:hsl(140, 70%, 60%);"></div>
+              {% elif i == 9 %}
+                <div class="flex-1 h-5 rounded" style="background-color:hsl(140, 70%, 55%);"></div>
+              {% else %}
+                <div class="flex-1 h-5 rounded" style="background-color:hsl(140, 70%, 50%);"></div>
+              {% endif %}
+            {% else %}
+              <div class="flex-1 h-5 rounded bg-gray-200"></div>
+            {% endif %}
+          {% endfor %}
+        </div>
+
+        <!-- 数値ラベル -->
+        <div class="flex w-full justify-between mt-1 text-xs text-gray-500 font-medium">
+          {% for i in mood_scale %}
+            <span class="flex-1 text-center">{{ i }}</span>
+          {% endfor %}
+        </div>
+      </div>
+    </div>
+  </div>
+
+
+
+
+  {# 編集フォーム（従来どおり。カードセクションとは別に残す） #}
+  <button onclick="document.getElementById('edit-form').classList.remove('pointer-events-none', 'opacity-50'); this.disabled = true;"
+          class="bg-yellow-500 hover:bg-yellow-600 text-white font-semibold py-2 px-4 rounded mb-4">
     編集する
   </button>
 
-  <form id="edit-form" action="{% url 'logs:update' log.id %}" method="post" class="pointer-events-none opacity-50 mb-4 space-y-4 bg-white p-4 rounded shadow">
+  <form id="edit-form" action="{% url 'logs:update' log.id %}" method="post"
+        class="pointer-events-none opacity-50 mb-8 space-y-4 bg-white p-4 rounded shadow">
     {% csrf_token %}
     <h3 class="text-xl font-semibold">編集フォーム</h3>
 
     <div>
-      <label for="date" class="block font-medium">記録日:</label>
-      <input type="date" id="date" name="date" value="{{ today|date:'Y-m-d' }}" class="mt-1 p-2 border rounded w-full">
+      <label class="block font-medium">今日の良かったこと①</label>
+      <input type="text" name="good_1" maxlength="200" value="{{ log.good_1 }}"
+             class="mt-1 p-2 border rounded w-full" placeholder="例：朝のコーヒーが最高だった">
+    </div>
+    <div>
+      <label class="block font-medium">今日の良かったこと②</label>
+      <input type="text" name="good_2" maxlength="200" value="{{ log.good_2 }}"
+             class="mt-1 p-2 border rounded w-full" placeholder="例：同僚に感謝された">
+    </div>
+    <div>
+      <label class="block font-medium">今日の良かったこと③</label>
+      <input type="text" name="good_3" maxlength="200" value="{{ log.good_3 }}"
+             class="mt-1 p-2 border rounded w-full" placeholder="例：夕方の散歩が気持ちよかった">
     </div>
 
     <div>
-      <label for="log_text" class="block font-medium">ログ:</label>
-      <textarea id="log_text" name="log_text" rows="3" class="mt-1 p-2 border rounded w-full">{{ log.log_text }}</textarea>
+      <label class="block font-medium">昨日から成長した点</label>
+      <textarea name="growth" rows="3" class="mt-1 p-2 border rounded w-full"
+                placeholder="例：睡眠前のスマホ時間を10分短くできた">{{ log.growth }}</textarea>
+    </div>
+
+    {# 任意：コメント欄（モデルに無い場合は空のままでもOK） #}
+    <div>
+      <label for="comment" class="block font-medium">コメント:</label>
+      <textarea id="comment" name="comment" rows="3" class="mt-1 p-2 border rounded w-full">{{ log.comment }}</textarea>
     </div>
 
     <div>
       <label for="sleep_time" class="block font-medium">入眠時間:</label>
-      <input type="datetime-local" id="sleep_time" name="sleep_time" value="{{ log.sleep_time|date:'Y-m-d\\TH:i' }}" class="mt-1 p-2 border rounded w-full">
+      <input type="datetime-local" id="sleep_time" name="sleep_time"
+             value="{{ log.sleep_time|date:'Y-m-d\\TH:i' }}" class="mt-1 p-2 border rounded w-full">
     </div>
-
     <div>
       <label for="wakeup_time" class="block font-medium">起床時間:</label>
-      <input type="datetime-local" id="wakeup_time" name="wakeup_time" value="{{ log.wakeup_time|date:'Y-m-d\\TH:i' }}" class="mt-1 p-2 border rounded w-full">
+      <input type="datetime-local" id="wakeup_time" name="wakeup_time"
+             value="{{ log.wakeup_time|date:'Y-m-d\\TH:i' }}" class="mt-1 p-2 border rounded w-full">
     </div>
 
     <div>
       <label class="block font-medium">気分:</label>
       <div class="flex flex-wrap gap-2 mt-1">
-        {% for i in "0123456789"|make_list %}
-          <label>
-            <input type="radio" id="mood{{ i }}" name="mood" value="{{ i }}" {% if log.mood == i|add:0 %}checked{% endif %}>
-            {{ i }}
+        {% for i in mood_scale %}
+          <label class="inline-flex items-center gap-1">
+          <input type="radio" id="mood{{ i }}" name="mood" value="{{ i }}" {% if log.mood == i %}checked{% endif %}>
+          <span>{{ i }}</span>
           </label>
         {% endfor %}
       </div>
@@ -82,11 +209,14 @@
     <button type="submit" class="bg-blue-500 hover:bg-blue-600 text-white font-semibold py-2 px-4 rounded">保存</button>
   </form>
 
-  <form action="{% url 'logs:delete' log.id %}" method="get" class="mb-4" onsubmit="return confirm('本当に削除しますか？');">
+  <form action="{% url 'logs:delete' log.id %}" method="get" class="mb-6" onsubmit="return confirm('本当に削除しますか？');">
     {% csrf_token %}
     <button type="submit" class="bg-red-500 hover:bg-red-600 text-white font-semibold py-2 px-4 rounded">削除</button>
   </form>
 
   <a href="{% url 'logs:index' %}" class="text-blue-500 hover:underline">← 一覧に戻る</a>
 </div>
+
+{# 睡眠円グラフのJS #}
+<script src="{% static 'logs/sleepClock.js' %}"></script>
 {% endblock %}

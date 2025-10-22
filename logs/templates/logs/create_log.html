@@ -6,39 +6,67 @@
   <form action="{% url 'logs:create' %}" method="post" class="space-y-6 bg-white p-6 rounded shadow">
     {% csrf_token %}
 
+    {# 記録日は自動設定（モデル default）なので入力欄は出さない #}
+
+    {# 良かったこと 3つ #}
     <div>
-      <label for="date" class="block font-medium">記録日:</label>
-      <input type="date" id="date" name="date" value="{{ today|date:'Y-m-d' }}" class="mt-1 p-2 border rounded w-full">
+      <label class="block font-medium">今日の良かったこと①</label>
+      <input type="text" name="good_1" maxlength="200"
+             class="mt-1 p-2 border rounded w-full"
+             placeholder="例：朝のコーヒーが最高だった">
     </div>
 
     <div>
-      <label for="log_text" class="block font-medium">ログ:</label>
-      <textarea id="log_text" name="log_text" rows="3" class="mt-1 p-2 border rounded w-full"></textarea>
+      <label class="block font-medium">今日の良かったこと②</label>
+      <input type="text" name="good_2" maxlength="200"
+             class="mt-1 p-2 border rounded w-full"
+             placeholder="例：同僚に感謝された">
     </div>
 
+    <div>
+      <label class="block font-medium">今日の良かったこと③</label>
+      <input type="text" name="good_3" maxlength="200"
+             class="mt-1 p-2 border rounded w-full"
+             placeholder="例：夕方の散歩が気持ちよかった">
+    </div>
+
+    {# 成長ポイント #}
+    <div>
+      <label class="block font-medium">昨日から成長した点</label>
+      <textarea name="growth" rows="3"
+                class="mt-1 p-2 border rounded w-full"
+                placeholder="例：睡眠前のスマホ時間を10分短くできた"></textarea>
+    </div>
+
+    {# 入眠・起床 #}
     <div>
       <label for="sleep_time" class="block font-medium">入眠時間:</label>
-      <input type="datetime-local" id="sleep_time" name="sleep_time" class="mt-1 p-2 border rounded w-full">
+      <input type="datetime-local" id="sleep_time" name="sleep_time"
+             class="mt-1 p-2 border rounded w-full">
     </div>
 
     <div>
       <label for="wakeup_time" class="block font-medium">起床時間:</label>
-      <input type="datetime-local" id="wakeup_time" name="wakeup_time" class="mt-1 p-2 border rounded w-full">
+      <input type="datetime-local" id="wakeup_time" name="wakeup_time"
+             class="mt-1 p-2 border rounded w-full">
     </div>
 
+    {# 気分（1〜10） #}
     <div>
       <label class="block font-medium">気分:</label>
       <div class="flex flex-wrap gap-2 mt-1">
-        {% for i in "0123456789"|make_list %}
-          <label>
-            <input type="radio" id="mood{{ i }}" name="mood" value="{{ i }}" {% if i == "5" %}checked{% endif %}>
-            {{ i }}
+        {% for i in mood_scale %}
+          <label class="inline-flex items-center gap-1">
+            <input type="radio" id="mood{{ i }}" name="mood" value="{{ i }}" {% if i == 5 %}checked{% endif %}>
+            <span>{{ i }}</span>
           </label>
         {% endfor %}
       </div>
     </div>
 
-    <button type="submit" class="bg-blue-500 hover:bg-blue-600 text-white font-semibold py-2 px-4 rounded">保存</button>
+    <button type="submit" class="bg-blue-500 hover:bg-blue-600 text-white font-semibold py-2 px-4 rounded">
+      保存
+    </button>
   </form>
 
   <div class="mt-6">
