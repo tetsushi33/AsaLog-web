@@ -6,7 +6,11 @@
   <form action="{% url 'logs:create' %}" method="post" class="space-y-6 bg-white p-6 rounded shadow">
     {% csrf_token %}
 
-    {# 記録日は自動設定（モデル default）なので入力欄は出さない #}
+    {# 入力欄は出さない。表示と hidden だけ #}
+    <div class="text-xl text-gray-600">
+      <span class="font-medium text-gray-900">{{ prefill_date }}</span>
+    </div>
+    <input type="hidden" name="date" value="{{ prefill_date }}">
 
     {# 良かったこと 3つ #}
     <div>

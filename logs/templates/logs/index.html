@@ -5,10 +5,34 @@
     ログカレンダー
   </h1>
 
-  <div class="mb-6">
-    <label for="monthSelect" class="block text-sm font-medium text-gray-700 mb-1">月を選択：</label>
-    <input type="month" id="monthSelect" class="border rounded px-3 py-2" onchange="filterCalendarByMonth(this.value)">
+<!-- カレンダー上部ナビゲーション -->
+<div class="flex items-center justify-between mb-6">
+  
+  <!-- 左側：月選択フォーム -->
+  <div>
+    <input type="month" id="monthSelect" class="border rounded px-3 py-2">
   </div>
+
+
+  <!-- 中央：月移動ナビ（← 10月 →） -->
+  <div class="flex items-center justify-center gap-4 flex-1">
+    <button id="prevMonth"
+            class="w-8 h-8 flex items-center justify-center rounded-full bg-white border border-gray-400 shadow hover:bg-gray-100 text-lg">
+      ←
+    </button>
+    <span id="currentMonth" class="text-xl font-semibold text-gray-800"></span>
+    <button id="nextMonth"
+            class="w-8 h-8 flex items-center justify-center rounded-full bg-white border border-gray-400 shadow hover:bg-gray-100 text-lg">
+      →
+    </button>
+  </div>
+
+  <!-- 右側：今日ボタン -->
+  <button id="todayBtn"
+          class="bg-white text-black font-semibold px-4 py-2 rounded border border-gray-400 shadow hover:bg-gray-100">
+    今日
+  </button>
+</div>
 
   <div id="calendarGrid" class="grid grid-cols-7 gap-px border bg-gray-300 rounded overflow-hidden">
     <div class="bg-gray-100 py-2 font-semibold text-center">日</div>
@@ -18,13 +42,11 @@
     <div class="bg-gray-100 py-2 font-semibold text-center">木</div>
     <div class="bg-gray-100 py-2 font-semibold text-center">金</div>
     <div class="bg-gray-100 py-2 font-semibold text-center">土</div>
-    <!-- カレンダー日付セルがJavaScriptで描画されます -->
+    <!-- 日付セルは JS で描画 -->
   </div>
 
   <div class="mt-6 flex gap-4">
-    <a href="{% url 'logs:create' %}" class="bg-blue-500 hover:bg-blue-600 text-white font-semibold py-2 px-4 rounded shadow">
-      ✏️ 新規作成
-    </a>
+    <!-- 新規作成ボタンは削除し、分析ページへの導線は残す -->
     <a href="{% url 'logs:analyze' %}" class="bg-green-500 hover:bg-green-600 text-white font-semibold py-2 px-4 rounded shadow">
       📊 分析ページへ
     </a>
@@ -32,45 +54,169 @@
 </div>
 
 <script>
+  // ログ配列（idとdate "YYYY-MM-DD" を含む想定）
   const logs = JSON.parse('{{ latest_log_list_json|escapejs }}');
+  const logDateSet = new Set(logs.map(l => l.date));
+
+  // 現在表示中の年月（0=1月〜11=12月）
+  let currentYear, currentMonth;
+
+  function ymdString(y, m) { // m: 0-based
+    return `${y}-${String(m + 1).padStart(2, '0')}`;
+  }
+
+  function setMonth(y, m) {
+    // 月がはみ出したら年繰り上げ/下げ
+    const d = new Date(y, m, 1);
+    currentYear = d.getFullYear();
+    currentMonth = d.getMonth();
+
+    // 上部ラベルを更新（例：2025年10月）
+    const monthLabel = document.getElementById('monthLabel');
+    const fmt = new Intl.DateTimeFormat('ja-JP', { year: 'numeric', month: 'long' });
+    monthLabel.textContent = fmt.format(new Date(currentYear, currentMonth, 1));
+
+    // month input も同期
+    const monthSelect = document.getElementById('monthSelect');
+    monthSelect.value = ymdString(currentYear, currentMonth);
+
+    // 描画
+    renderCalendar(currentYear, currentMonth);
+  }
+
+  function shiftMonth(delta) {
+    setMonth(currentYear, currentMonth + delta);
+  }
 
   function renderCalendar(year, month) {
+    currentYear = year;
+    currentMonth = month;
+
+    const monthNames = ["1月","2月","3月","4月","5月","6月","7月","8月","9月","10月","11月","12月"];
+    document.getElementById("currentMonth").textContent = `${year}年 ${monthNames[month]}`;
+    document.getElementById("monthSelect").value = `${year}-${String(month + 1).padStart(2, '0')}`;
+
     const firstDay = new Date(year, month, 1);
     const lastDay = new Date(year, month + 1, 0);
     const startWeekDay = firstDay.getDay();
     const totalDays = lastDay.getDate();
+    const today = new Date();
 
     const calendarGrid = document.getElementById("calendarGrid");
 
-    // 以前のセルをクリア（ヘッダーを除く）
+    // ヘッダー以外をクリア
     const children = Array.from(calendarGrid.children);
     children.slice(7).forEach(e => e.remove());
-    
-    // 空白セル挿入
-    for (let i = 0; i < startWeekDay; i++) {
-      const emptyCell = document.createElement("div");
-      emptyCell.className = "bg-white h-24";
-      calendarGrid.appendChild(emptyCell);
-    }
 
-    // 日付セル挿入
-    for (let day = 1; day <= totalDays; day++) {
-      const cellDate = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
-      const log = logs.find(l => l.date === cellDate);
+    // --- 前月の末日を取得 ---
+    const prevLastDay = new Date(year, month, 0).getDate();
+
+    // --- 前月の日付を挿入（先頭の空き部分） ---
+    for (let i = startWeekDay - 1; i >= 0; i--) {
+      const day = prevLastDay - i;
+      const prevMonthDate = new Date(year, month - 1, day);
+      const cellDate = `${prevMonthDate.getFullYear()}-${String(prevMonthDate.getMonth() + 1).padStart(2, '0')}-${String(prevMonthDate.getDate()).padStart(2, '0')}`;
+      const hasLog = logDateSet.has(cellDate);
+      const weekday = prevMonthDate.getDay();
 
       const cell = document.createElement("div");
-      cell.className = "bg-white h-24 p-2 text-sm text-left calendar-cell border hover:bg-blue-50";
+      cell.className = "relative h-24 p-2 text-sm border bg-gray-50 text-gray-400"; // ← 薄く表示
 
       const dateLabel = document.createElement("div");
       dateLabel.className = "font-semibold mb-1";
       dateLabel.textContent = day;
       cell.appendChild(dateLabel);
 
-      if (log) {
+      if (hasLog) {
+        const ymd = cellDate.replace(/-/g, "");
         const link = document.createElement("a");
-        link.href = `/logs/${log.id}/`;
-        link.className = "block text-blue-600 hover:underline";
-        link.textContent = log.log_text || "（メモなし）";
+        link.href = `/logs/${ymd}/`;
+        link.className = "inline-block text-blue-400 hover:underline";
+        link.textContent = "確認";
+        cell.appendChild(link);
+      }
+
+      calendarGrid.appendChild(cell);
+    }
+
+    // --- 今月の日付 ---
+    for (let day = 1; day <= totalDays; day++) {
+      const cellDate = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+      const hasLog = logDateSet.has(cellDate);
+      const weekday = new Date(year, month, day).getDay();
+
+      const cell = document.createElement("div");
+      cell.className =
+        "relative h-24 p-2 text-sm border text-left transition-colors";
+
+      // 土日色
+      if (weekday === 0) {
+        cell.classList.add("bg-red-50");
+      } else if (weekday === 6) {
+        cell.classList.add("bg-blue-50");
+      } else {
+        cell.classList.add("bg-white");
+      }
+
+      // 日付ラベル
+      const dateLabel = document.createElement("div");
+      const isToday =
+        day === today.getDate() &&
+        month === today.getMonth() &&
+        year === today.getFullYear();
+
+      if (isToday) {
+        dateLabel.className =
+          "flex items-center justify-center font-semibold w-8 h-8 rounded-full bg-black text-white mb-1";
+      } else {
+        dateLabel.className = "font-semibold mb-1 inline-block text-left";
+      }
+      dateLabel.textContent = day;
+      cell.appendChild(dateLabel);
+
+      // 内容
+      if (hasLog) {
+        const ymd = cellDate.replace(/-/g, "");
+        const link = document.createElement("a");
+        link.href = `/logs/${ymd}/`;
+        link.className = "inline-block text-blue-600 hover:underline";
+        link.textContent = "確認";
+        cell.appendChild(link);
+      } else {
+        const plus = document.createElement("a");
+        plus.href = `{% url 'logs:create' %}?date=${cellDate}`;
+        plus.title = `${cellDate} のログを作成`;
+        plus.className =
+          "absolute top-1 right-1 w-6 h-6 grid place-items-center rounded-full bg-green-500 text-white text-base leading-none hover:bg-green-600 shadow";
+        plus.textContent = "+";
+        cell.appendChild(plus);
+      }
+
+      calendarGrid.appendChild(cell);
+    }
+
+    // --- 次月の日付を挿入（末尾の空き部分） ---
+    const lastWeekDay = lastDay.getDay();
+    const nextMonthDays = 6 - lastWeekDay;
+    for (let i = 1; i <= nextMonthDays; i++) {
+      const nextMonthDate = new Date(year, month + 1, i);
+      const cellDate = `${nextMonthDate.getFullYear()}-${String(nextMonthDate.getMonth() + 1).padStart(2, '0')}-${String(nextMonthDate.getDate()).padStart(2, '0')}`;
+      const hasLog = logDateSet.has(cellDate);
+
+      const cell = document.createElement("div");
+      cell.className = "relative h-24 p-2 text-sm border bg-gray-50 text-gray-400"; // ← 薄い表示
+
+      const dateLabel = document.createElement("div");
+      dateLabel.className = "font-semibold mb-1";
+      dateLabel.textContent = i;
+      cell.appendChild(dateLabel);
+
+      if (hasLog) {
+        const ymd = cellDate.replace(/-/g, "");
+        const link = document.createElement("a");
+        link.href = `/logs/${ymd}/`;
+        link.className = "inline-block text-blue-400 hover:underline";
+        link.textContent = "確認";
         cell.appendChild(link);
       }
 
@@ -78,15 +224,41 @@
     }
   }
 
+
+
+
   function filterCalendarByMonth(value) {
     const [year, month] = value.split("-").map(Number);
     renderCalendar(year, month - 1);
-  }
+  } 
 
+  // ← → ボタン動作
   document.addEventListener("DOMContentLoaded", () => {
     const today = new Date();
-    document.getElementById("monthSelect").value = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}`;
-    renderCalendar(today.getFullYear(), today.getMonth());
+    currentYear = today.getFullYear();
+    currentMonth = today.getMonth();
+
+    document.getElementById("monthSelect").value =
+      `${currentYear}-${String(currentMonth + 1).padStart(2, '0')}`;
+    renderCalendar(currentYear, currentMonth);
+
+    document.getElementById("prevMonth").addEventListener("click", () => {
+      let y = currentYear, m = currentMonth - 1;
+      if (m < 0) { m = 11; y--; }
+      renderCalendar(y, m);
+    });
+
+    document.getElementById("nextMonth").addEventListener("click", () => {
+      let y = currentYear, m = currentMonth + 1;
+      if (m > 11) { m = 0; y++; }
+      renderCalendar(y, m);
+    });
+
+    // ✅ 今日ボタン：現在の日付が属する月へ移動
+    document.getElementById("todayBtn").addEventListener("click", () => {
+      const now = new Date();
+      renderCalendar(now.getFullYear(), now.getMonth());
+    });
   });
 </script>
 {% endblock %}

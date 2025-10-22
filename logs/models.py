@@ -6,7 +6,7 @@ from django.utils import timezone   # ← 追加（重要：タイムゾーン�
 # Create your models here.
 class Log(models.Model):
     # 記録の日付
-    date = models.DateField(default=timezone.localdate)
+    date = models.DateField(unique=True, default=timezone.localdate)
     # 最終更新日（自動で更新される）
     updated_at = models.DateTimeField(auto_now=True)
     # 睡眠時間
