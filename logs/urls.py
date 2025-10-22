@@ -16,5 +16,4 @@ urlpatterns = [
 
     path("analyze/", views.analyze, name="analyze"),
     path("create/", views.create_log, name="create"),
-    path("delete/<int:log_id>/", views.delete_log, name="delete"),
 ]

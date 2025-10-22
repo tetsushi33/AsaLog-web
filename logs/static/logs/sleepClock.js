@@ -10,8 +10,18 @@ const sM = Number(svg.dataset.sleepM);
 const wH = Number(svg.dataset.wakeH);
 const wM = Number(svg.dataset.wakeM);
 
-// 値が欠けている場合は描画しない
-if ([sH, sM, wH, wM].some(x => Number.isNaN(x))) return;
+// データが欠けていれば描画せず終了
+if (
+    [svg.dataset.sleepH, svg.dataset.sleepM, svg.dataset.wakeH, svg.dataset.wakeM]
+        .some(val => val === undefined || val === null || val === "")
+    || [sH, sM, wH, wM].some(Number.isNaN)
+) {
+    document.getElementById('sleepArc')?.setAttribute('d', '');
+    document.getElementById('startDot')?.setAttribute('visibility', 'hidden');
+    document.getElementById('endDot')?.setAttribute('visibility', 'hidden');
+    return;
+}
+  
 
 // ローカル日の分単位 0..1439 に変換
 let sMin = sH * 60 + sM; // 入眠
@@ -22,7 +32,7 @@ let endMin = wMin;
 if (wMin <= sMin) endMin += 1440;
 
 // --- 描画パラメータ ---
-const cx = 110, cy = 110;  // 中心
+const cx = 120, cy = 110;  // 中心
 const r  = 78;             // 半径（strokeがはみ出ない程度に小さめ）
 const minToRad = m => ((m / 1440) * 360 - 90) * Math.PI / 180;
 

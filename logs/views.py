@@ -8,29 +8,18 @@ from django.db.models import Avg, Max, Min
 import json
 from django.core.serializers.json import DjangoJSONEncoder
 from datetime import datetime
+from datetime import timedelta
 
 def index(request):
-    latest_log_list = Log.objects.order_by("-date")
+    latest_log_list = Log.objects.values(
+    "id", "date", "good_1", "sleep_time", "wakeup_time"
+    )   
     template = loader.get_template("logs/index.html")
     context = {
-        "latest_log_list_json": json.dumps([
-            {"id": log.id, "date": str(log.date)}
-            for log in latest_log_list
-        ], cls=DjangoJSONEncoder),
+        "latest_log_list_json": json.dumps(list(latest_log_list), cls=DjangoJSONEncoder),
         "latest_log_list": latest_log_list,
     }
     return HttpResponse(template.render(context, request))
-
-
-def detail(request, log_id):
-    log = get_object_or_404(Log, pk=log_id)
-    sleep_duration_str = None
-    if log.sleep_duration:
-        total_seconds = log.sleep_duration.total_seconds()
-        hours = int(total_seconds // 3600)
-        minutes = int((total_seconds % 3600) // 60)
-        sleep_duration_str = f"{hours}時間 {minutes}分"
-    return render(request, "logs/detail.html", {"log": log, "sleep_duration_str": sleep_duration_str, "mood_scale": range(1, 11)})
 
 
 def _yyyymmdd_to_date(yyyymmdd: int):
@@ -46,7 +35,26 @@ def detail_by_date(request, yyyymmdd):
         hours = int(total_seconds // 3600)
         minutes = int((total_seconds % 3600) // 60)
         sleep_duration_str = f"{hours}時間 {minutes}分"
-    return render(request, "logs/detail.html", {"log": log, "sleep_duration_str": sleep_duration_str, "mood_scale": range(1, 11)})
+
+    # 前後の日付を計算
+    prev_date = d - timedelta(days=1)
+    next_date = d + timedelta(days=1)
+    # ログの有無をチェック
+    show_prev = Log.objects.filter(date=prev_date).exists()
+    show_next = Log.objects.filter(date=next_date).exists()
+    return render(
+        request, 
+        "logs/detail.html", 
+        {
+            "log": log, 
+            "sleep_duration_str": sleep_duration_str, 
+            "mood_scale": range(1, 11),
+            "prev_date": prev_date,
+            "next_date": next_date,
+            "show_prev": show_prev,
+            "show_next": show_next,
+        }
+    )
 
 
 def update_log_by_date(request, yyyymmdd):
@@ -58,6 +66,7 @@ def update_log_by_date(request, yyyymmdd):
         log.good_2 = (request.POST.get("good_2") or "").strip()
         log.good_3 = (request.POST.get("good_3") or "").strip()
         log.growth = (request.POST.get("growth") or "").strip()
+        log.comment = (request.POST.get("comment") or "").strip()
         try:
             log.mood = int(request.POST.get("mood", log.mood))
         except (TypeError, ValueError):
@@ -95,31 +104,6 @@ def delete_log_by_date(request, yyyymmdd):
         return redirect("logs:index")
     return redirect("logs:detail_by_date", yyyymmdd=yyyymmdd)
 
-def update_log(request, log_id):
-    log = get_object_or_404(Log, id=log_id)
-
-    if request.method == "POST":
-        log.updated_at = timezone.now()
-        log.good_1 = request.POST.get("good_1", "").strip()
-        log.good_2 = request.POST.get("good_2", "").strip()
-        log.good_3 = request.POST.get("good_3", "").strip()
-        log.growth = request.POST.get("growth", "").strip()
-        log.sleep_time = parse_datetime(request.POST.get("sleep_time")) or log.sleep_time
-        log.wakeup_time = parse_datetime(request.POST.get("wakeup_time")) or log.wakeup_time
-        log.mood = int(request.POST.get("mood", log.mood))
-    
-        log.comment = request.POST.get("comment", "")
-
-        # sleep_duration を自動更新
-        if log.sleep_time and log.wakeup_time:
-            log.sleep_duration = log.wakeup_time - log.sleep_time
-        else:
-            log.sleep_duration = None
-
-        log.save()
-        return redirect("logs:detail", log_id=log.id)
-
-    return render(request, "detail.html", {"log": log})
 
 
 def analyze(request):
@@ -217,8 +201,3 @@ def create_log(request):
         "prefill_date": display_date,   # 表示＆hidden でPOST
     })
 
-
-def delete_log(request, log_id):
-    log = get_object_or_404(Log, id=log_id)
-    log.delete()
-    return redirect("logs:index")

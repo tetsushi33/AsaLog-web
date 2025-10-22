@@ -2,53 +2,104 @@
 {% load static %}
 {% block content %}
 <div class="max-w-3xl mx-auto">
-  <h2 class="text-2xl font-bold mb-6">ログの詳細</h2>
 
   {# 1) 日付 + 最終更新（カード） #}
   <div class="mb-6 rounded-lg border bg-white p-4 shadow">
-    <h3 class="mb-2 text-lg font-semibold">日付</h3>
-    <div class="text-gray-800">
-      <div class="text-xl font-semibold">{{ log.date|date:"Y年m月d日" }}</div>
-      <div class="text-sm text-gray-500 mt-1">最終更新: {{ log.updated_at|date:"Y/m/d H:i" }}</div>
-    </div>
-  </div>
-
-  {# 2) 睡眠時間（既存のまま） #}
-  {% if log.sleep_time and log.wakeup_time %}
-  <div class="mb-6 rounded-lg border bg-white p-4 shadow">
-    <h3 class="mb-3 text-lg font-semibold">睡眠時間</h3>
-    <div class="flex flex-col sm:flex-row items-center gap-4">
-      <!-- SVG 時計 -->
-      <svg id="sleepClock"
-           width="265" height="220" viewBox="0 0 220 220"
-           class="shrink-0"
-           data-sleep-h="{{ log.sleep_time|date:'H' }}"
-           data-sleep-m="{{ log.sleep_time|date:'i' }}"
-           data-wake-h="{{ log.wakeup_time|date:'H' }}"
-           data-wake-m="{{ log.wakeup_time|date:'i' }}">
-        <!-- 外枠（少し濃い） -->
-        <circle cx="110" cy="110" r="90" fill="white" stroke="#9ca3af" stroke-width="2"/>
-        <!-- 睡眠区間の弧（JSで描画） -->
-        <path id="sleepArc" fill="none" stroke="#4f46e5" stroke-width="18" stroke-linecap="round"/>
-        <!-- 始点/終点 -->
-        <circle id="startDot" r="5" fill="#4f46e5"/>
-        <circle id="endDot" r="5" fill="#4f46e5"/>
-        <!-- 方角ラベル（文字大きめ＆6:00を少し右へ） -->
-        <text x="110" y="18"  text-anchor="middle" font-size="15" fill="#374151">0:00</text>
-        <text x="110" y="212" text-anchor="middle" font-size="15" fill="#374151">12:00</text>
-        <text x="206" y="114" text-anchor="middle" font-size="15" fill="#374151">6:00</text>
-        <text x="20"  y="114" text-anchor="middle" font-size="15" fill="#374151">18:00</text>
-      </svg>
-
-      <!-- テキスト要約 -->
-      <div class="text-2xl text-gray-800">
-        <div class="mb-1"><span class="text-gray-800">入眠時間:</span> {{ log.sleep_time|date:"m/d H:i" }}</div>
-        <div class="mb-1"><span class="text-gray-800">起床時間:</span> {{ log.wakeup_time|date:"m/d H:i" }}</div>
-        <div><span class="text-gray-800">睡眠時間:</span> {% if sleep_duration_str %}{{ sleep_duration_str }}{% else %}-{% endif %}</div>
+    <div class="flex flex-col sm:flex-row justify-between items-center gap-3">
+      
+      <!-- 左: 前日ボタン -->
+      {% if show_prev %}
+      <a href="{% url 'logs:detail_by_date' yyyymmdd=prev_date|date:'Ymd' %}"
+         class="bg-white border border-gray-400 hover:bg-gray-100 text-gray-800 font-medium px-4 py-2 rounded shadow text-sm">
+        ← 前日（{{ prev_date|date:"m月d日" }}）
+      </a>
+      {% else %}
+        <div class="text-gray-400 px-4 py-2 text-sm">← 前日（{{ prev_date|date:"m月d日" }}）</div>
+      {% endif %}
+  
+      <!-- 中央: 当日日付 -->
+      <div class="text-center">
+        <div class="text-xl font-semibold text-gray-800">
+          {{ log.date|date:"Y年m月d日" }}
+        </div>
+        <div class="text-sm text-gray-500 mt-1">
+          最終更新: {{ log.updated_at|date:"Y/m/d H:i" }}
+        </div>
+      </div>
+  
+      <!-- 右: 翌日へ -->
+      <div>
+        <!-- 右: 翌日ボタン -->
+        {% if show_next %}
+        <a href="{% url 'logs:detail_by_date' yyyymmdd=next_date|date:'Ymd' %}"
+          class="bg-white border border-gray-400 hover:bg-gray-100 text-gray-800 font-medium px-4 py-2 rounded shadow text-sm">
+          翌日（{{ next_date|date:"m月d日" }}） →
+        </a>
+        {% else %}
+          <div class="text-gray-400 px-4 py-2 text-sm">翌日（{{ next_date|date:"m月d日" }}） →</div>
+        {% endif %}
       </div>
     </div>
   </div>
-  {% endif %}
+  
+
+  {# 2) 睡眠時間（既存のまま） #}
+  <!-- 常にブロックを表示 -->
+  <div class="mb-6 rounded-lg border bg-white p-4 shadow">
+    <h3 class="mb-3 text-lg font-semibold">睡眠時間</h3>
+    <div class="flex flex-col sm:flex-row items-center gap-4">
+      
+      <!-- SVG 時計 -->
+      <svg id="sleepClock"
+          width="280" height="220" viewBox="0 0 220 220"
+          class="shrink-0"
+          {% if log.sleep_time and log.wakeup_time %}
+            data-sleep-h="{{ log.sleep_time|date:'H' }}"
+            data-sleep-m="{{ log.sleep_time|date:'i' }}"
+            data-wake-h="{{ log.wakeup_time|date:'H' }}"
+            data-wake-m="{{ log.wakeup_time|date:'i' }}"
+          {% endif %}
+      >
+        <circle cx="120" cy="110" r="90" fill="white" stroke="#9ca3af" stroke-width="2"/>
+        <path id="sleepArc" fill="none" stroke="#4f46e5" stroke-width="18" stroke-linecap="round"/>
+        <circle id="startDot" r="5" fill="#4f46e5"/>
+        <circle id="endDot" r="5" fill="#4f46e5"/>
+        <text x="120" y="18"  text-anchor="middle" font-size="18" fill="#374151">0:00</text>
+        <text x="120" y="215" text-anchor="middle" font-size="18" fill="#374151">12:00</text>
+        <text x="230" y="114" text-anchor="middle" font-size="18" fill="#374151">6:00</text>
+        <text x="0"  y="114" text-anchor="middle" font-size="18" fill="#374151">18:00</text>
+      </svg>
+
+      <!-- テキスト部分 -->
+      <div class="text-2xl text-gray-800 space-y-1">
+        <div>
+          <span class="text-gray-800">入眠時間:</span>
+          {% if log.sleep_time %}
+            {{ log.sleep_time|date:"m/d H:i" }}
+          {% else %}
+            <span class="text-gray-400">未入力</span>
+          {% endif %}
+        </div>
+        <div>
+          <span class="text-gray-800">起床時間:</span>
+          {% if log.wakeup_time %}
+            {{ log.wakeup_time|date:"m/d H:i" }}
+          {% else %}
+            <span class="text-gray-400">未入力</span>
+          {% endif %}
+        </div>
+        <div>
+          <span class="text-gray-800">睡眠時間:</span>
+          {% if sleep_duration_str %}
+            {{ sleep_duration_str }}
+          {% else %}
+            <span class="text-gray-400">未入力</span>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+  </div>
+
 
   {# 3) 今日の良かったこと（親カード内に3カード横並び） #}
   <div class="mb-6 rounded-lg border bg-white p-4 shadow">
@@ -155,15 +206,44 @@
 
 
   {# 編集フォーム（従来どおり。カードセクションとは別に残す） #}
-  <button onclick="document.getElementById('edit-form').classList.remove('pointer-events-none', 'opacity-50'); this.disabled = true;"
-          class="bg-yellow-500 hover:bg-yellow-600 text-white font-semibold py-2 px-4 rounded mb-4">
-    編集する
-  </button>
+  <div class="flex justify-between items-center mb-0">
+    <button
+      onclick="document.getElementById('edit-form').classList.remove('pointer-events-none', 'opacity-50'); this.disabled = true;"
+      class="bg-yellow-500 hover:bg-yellow-600 text-white font-semibold py-2 px-4 rounded"
+    >
+      編集する
+    </button>
+  
+    <form
+      action="{% url 'logs:delete_by_date' yyyymmdd=log.date|date:'Ymd' %}"
+      method="get"
+      onsubmit="return confirm('本当に削除しますか？');"
+    >
+      {% csrf_token %}
+      <button
+        type="submit"
+        class="bg-red-500 hover:bg-red-600 text-white font-semibold py-2 px-4 rounded"
+      >
+        この日のデータを削除する
+      </button>
+    </form>
+  </div>
 
   <form id="edit-form" action="{% url 'logs:update_by_date' yyyymmdd=log.date|date:'Ymd' %}" method="post"
         class="pointer-events-none opacity-50 mb-8 space-y-4 bg-white p-4 rounded shadow">
     {% csrf_token %}
     <h3 class="text-xl font-semibold">編集フォーム</h3>
+
+    <div>
+      <label for="sleep_time" class="block font-medium">入眠時間:</label>
+      <input type="datetime-local" id="sleep_time" name="sleep_time"
+             value="{{ log.sleep_time|date:'Y-m-d\\TH:i' }}" class="mt-1 p-2 border rounded w-full">
+    </div>
+    <div>
+      <label for="wakeup_time" class="block font-medium">起床時間:</label>
+      <input type="datetime-local" id="wakeup_time" name="wakeup_time"
+             value="{{ log.wakeup_time|date:'Y-m-d\\TH:i' }}" class="mt-1 p-2 border rounded w-full">
+    </div>
 
     <div>
       <label class="block font-medium">今日の良かったこと①</label>
@@ -189,19 +269,8 @@
 
     {# 任意：コメント欄（モデルに無い場合は空のままでもOK） #}
     <div>
-      <label for="comment" class="block font-medium">コメント:</label>
+      <label for="comment" class="block font-medium">コメント</label>
       <textarea id="comment" name="comment" rows="3" class="mt-1 p-2 border rounded w-full">{{ log.comment }}</textarea>
-    </div>
-
-    <div>
-      <label for="sleep_time" class="block font-medium">入眠時間:</label>
-      <input type="datetime-local" id="sleep_time" name="sleep_time"
-             value="{{ log.sleep_time|date:'Y-m-d\\TH:i' }}" class="mt-1 p-2 border rounded w-full">
-    </div>
-    <div>
-      <label for="wakeup_time" class="block font-medium">起床時間:</label>
-      <input type="datetime-local" id="wakeup_time" name="wakeup_time"
-             value="{{ log.wakeup_time|date:'Y-m-d\\TH:i' }}" class="mt-1 p-2 border rounded w-full">
     </div>
 
     <div>
@@ -219,14 +288,9 @@
     <button type="submit" class="bg-blue-500 hover:bg-blue-600 text-white font-semibold py-2 px-4 rounded">保存</button>
   </form>
 
-  <form action="{% url 'logs:delete_by_date' yyyymmdd=log.date|date:'Ymd' %}" method="get" class="mb-6" onsubmit="return confirm('本当に削除しますか？');">
-    {% csrf_token %}
-    <button type="submit" class="bg-red-500 hover:bg-red-600 text-white font-semibold py-2 px-4 rounded">削除</button>
-  </form>
-
-  <a href="{% url 'logs:index' %}" class="text-blue-500 hover:underline">← 一覧に戻る</a>
+  <a href="{% url 'logs:index' %}" class="text-blue-500 hover:underline">← 🗓️ カレンダー</a>
 </div>
 
 {# 睡眠円グラフのJS #}
-<script src="{% static 'logs/sleepClock.js' %}"></script>
+<script src="{% static 'logs/sleepClock.js' %}?v=2"></script>
 {% endblock %}

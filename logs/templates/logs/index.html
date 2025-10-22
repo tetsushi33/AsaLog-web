@@ -1,9 +1,6 @@
 {% extends "base.html" %}
 {% block content %}
 <div class="max-w-4xl mx-auto">
-  <h1 class="text-3xl font-bold mb-6 text-indigo-700 flex items-center gap-2">
-    ログカレンダー
-  </h1>
 
 <!-- カレンダー上部ナビゲーション -->
 <div class="flex items-center justify-between mb-6">
@@ -44,13 +41,6 @@
     <div class="bg-gray-100 py-2 font-semibold text-center">土</div>
     <!-- 日付セルは JS で描画 -->
   </div>
-
-  <div class="mt-6 flex gap-4">
-    <!-- 新規作成ボタンは削除し、分析ページへの導線は残す -->
-    <a href="{% url 'logs:analyze' %}" class="bg-green-500 hover:bg-green-600 text-white font-semibold py-2 px-4 rounded shadow">
-      📊 分析ページへ
-    </a>
-  </div>
 </div>
 
 <script>
@@ -88,19 +78,90 @@
     setMonth(currentYear, currentMonth + delta);
   }
 
+  // ▼ 先頭に追加：テキスト省略 & ミニ睡眠円グラフSVG
+  function truncateHead(s, n = 6) {
+    if (!s) return "（未入力）";
+    return s.length > n ? s.slice(0, n) + "…" : s;
+  }
+
+  function miniSleepSVG(sleepTime, wakeTime, size = 40) {
+    const svgNS = "http://www.w3.org/2000/svg";
+    const svg = document.createElementNS(svgNS, "svg");
+    svg.setAttribute("width", size);
+    svg.setAttribute("height", size);
+    svg.setAttribute("viewBox", "0 0 100 100");
+    svg.classList.add("mx-auto"); // セル中央寄せ
+
+    const circle = document.createElementNS(svgNS, "circle");
+    circle.setAttribute("cx", 50);
+    circle.setAttribute("cy", 50);
+    circle.setAttribute("r", 45);
+    circle.setAttribute("fill", "white");
+    circle.setAttribute("stroke", "#9ca3af");
+    circle.setAttribute("stroke-width", 4);
+    svg.appendChild(circle);
+
+    // 睡眠時間が無い場合（null or undefined）
+    if (!sleepTime || !wakeTime) {
+      const text = document.createElementNS(svgNS, "text");
+      text.setAttribute("x", "50");
+      text.setAttribute("y", "55");
+      text.setAttribute("text-anchor", "middle");
+      text.setAttribute("font-size", "30");
+      text.setAttribute("fill", "#6b7280");
+      text.textContent = "未";
+      svg.appendChild(text);
+      return svg;
+    }
+
+    // 時刻を角度に変換
+    const sleep = new Date(sleepTime);
+    const wake = new Date(wakeTime);
+    const sleepAngle = ((sleep.getHours() + sleep.getMinutes() / 60) / 24) * 360 - 90;
+    const wakeAngle = ((wake.getHours() + wake.getMinutes() / 60) / 24) * 360 - 90;
+
+    // パスを生成
+    const startX = 50 + 45 * Math.cos((sleepAngle * Math.PI) / 180);
+    const startY = 50 + 45 * Math.sin((sleepAngle * Math.PI) / 180);
+    const endX = 50 + 45 * Math.cos((wakeAngle * Math.PI) / 180);
+    const endY = 50 + 45 * Math.sin((wakeAngle * Math.PI) / 180);
+
+    const largeArc = wakeAngle - sleepAngle < 0
+      ? wakeAngle - sleepAngle + 360 > 180
+      : wakeAngle - sleepAngle > 180;
+
+    const path = document.createElementNS(svgNS, "path");
+    path.setAttribute("d", `M ${startX} ${startY} A 45 45 0 ${largeArc ? 1 : 0} 1 ${endX} ${endY}`);
+    path.setAttribute("fill", "none");
+    path.setAttribute("stroke", "#3b82f6"); // 青
+    path.setAttribute("stroke-width", "8");
+    path.setAttribute("stroke-linecap", "round");
+    svg.appendChild(path);
+
+    return svg;
+  }
+
+  function getLocalToday() {
+    const now = new Date();
+    const y = now.getFullYear();
+    const m = String(now.getMonth() + 1).padStart(2, '0');
+    const d = String(now.getDate()).padStart(2, '0');
+    return `${y}-${m}-${d}`;
+  }
+
   function renderCalendar(year, month) {
+    const firstDay  = new Date(year, month, 1);
+    const lastDay   = new Date(year, month + 1, 0);
+    const startWeekDay = firstDay.getDay();
+    const totalDays    = lastDay.getDate();
+    const todayISO = getLocalToday();  // ← UTCではなくローカル日付で比較
+
+    // ラベルと month input 同期
     currentYear = year;
     currentMonth = month;
-
     const monthNames = ["1月","2月","3月","4月","5月","6月","7月","8月","9月","10月","11月","12月"];
     document.getElementById("currentMonth").textContent = `${year}年 ${monthNames[month]}`;
-    document.getElementById("monthSelect").value = `${year}-${String(month + 1).padStart(2, '0')}`;
-
-    const firstDay = new Date(year, month, 1);
-    const lastDay = new Date(year, month + 1, 0);
-    const startWeekDay = firstDay.getDay();
-    const totalDays = lastDay.getDate();
-    const today = new Date();
+    document.getElementById("monthSelect").value = `${year}-${String(month + 1).padStart(2,'0')}`;
 
     const calendarGrid = document.getElementById("calendarGrid");
 
@@ -108,122 +169,166 @@
     const children = Array.from(calendarGrid.children);
     children.slice(7).forEach(e => e.remove());
 
-    // --- 前月の末日を取得 ---
-    const prevLastDay = new Date(year, month, 0).getDate();
-
-    // --- 前月の日付を挿入（先頭の空き部分） ---
+    // ---------- 前月分（先頭の空き） ----------
+    const prevLastDate = new Date(year, month, 0); // 前月末
+    const prevLastDay  = prevLastDate.getDate();
     for (let i = startWeekDay - 1; i >= 0; i--) {
-      const day = prevLastDay - i;
-      const prevMonthDate = new Date(year, month - 1, day);
-      const cellDate = `${prevMonthDate.getFullYear()}-${String(prevMonthDate.getMonth() + 1).padStart(2, '0')}-${String(prevMonthDate.getDate()).padStart(2, '0')}`;
+      const d  = prevLastDay - i;
+      const dt = new Date(year, month - 1, d);
+      const cellDate = `${dt.getFullYear()}-${String(dt.getMonth()+1).padStart(2,'0')}-${String(dt.getDate()).padStart(2,'0')}`;
       const hasLog = logDateSet.has(cellDate);
-      const weekday = prevMonthDate.getDay();
 
+      // 例：当月ブロック
       const cell = document.createElement("div");
-      cell.className = "relative h-24 p-2 text-sm border bg-gray-50 text-gray-400"; // ← 薄く表示
+      cell.className = "relative group h-24 p-2 text-sm border text-left transition-colors";
 
       const dateLabel = document.createElement("div");
-      dateLabel.className = "font-semibold mb-1";
-      dateLabel.textContent = day;
+      dateLabel.className = "font-semibold mb-1 inline-block text-left text-gray-500";
+      dateLabel.textContent = d;
       cell.appendChild(dateLabel);
 
+      // 今日バッジ（前月セルでも該当日なら付ける）
+      if (cellDate === todayISO) {
+        const badge = document.createElement("div");
+        badge.textContent = "today";
+        badge.className = "absolute top-1 right-1 bg-black text-white text-[10px] px-1.5 py-0.5 rounded";
+        cell.appendChild(badge);
+      }
+
       if (hasLog) {
+        const rec = logs.find(l => l.date === cellDate);
         const ymd = cellDate.replace(/-/g, "");
         const link = document.createElement("a");
         link.href = `/logs/${ymd}/`;
-        link.className = "inline-block text-blue-400 hover:underline";
-        link.textContent = "確認";
+        link.className = "block no-underline text-gray-600";
+
+        const topRow = document.createElement("div");
+        topRow.className = "flex items-center justify-center mb-1";
+        const mini = miniSleepSVG(rec?.sleep_time, rec?.wakeup_time);
+        if (mini) topRow.appendChild(mini);
+
+        const good = document.createElement("div");
+        good.className = "text-xs text-gray-600 text-center";
+        good.textContent = truncateHead(rec?.good_1, 6);
+
+        link.appendChild(topRow);
+        link.appendChild(good);
         cell.appendChild(link);
       }
-
       calendarGrid.appendChild(cell);
     }
 
-    // --- 今月の日付 ---
+    // ---------- 当月 ----------
     for (let day = 1; day <= totalDays; day++) {
-      const cellDate = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+      const cellDate = `${year}-${String(month + 1).padStart(2,'0')}-${String(day).padStart(2,'0')}`;
       const hasLog = logDateSet.has(cellDate);
       const weekday = new Date(year, month, day).getDay();
 
+      // 例：当月ブロック
       const cell = document.createElement("div");
-      cell.className =
-        "relative h-24 p-2 text-sm border text-left transition-colors";
+      cell.className = "relative group h-24 p-2 text-sm border text-left transition-colors";
 
-      // 土日色
-      if (weekday === 0) {
-        cell.classList.add("bg-red-50");
-      } else if (weekday === 6) {
-        cell.classList.add("bg-blue-50");
-      } else {
-        cell.classList.add("bg-white");
-      }
+      if (weekday === 0)       cell.classList.add("bg-red-50");
+      else if (weekday === 6)  cell.classList.add("bg-blue-50");
+      else                     cell.classList.add("bg-white");
 
-      // 日付ラベル
       const dateLabel = document.createElement("div");
-      const isToday =
-        day === today.getDate() &&
-        month === today.getMonth() &&
-        year === today.getFullYear();
-
-      if (isToday) {
-        dateLabel.className =
-          "flex items-center justify-center font-semibold w-8 h-8 rounded-full bg-black text-white mb-1";
-      } else {
-        dateLabel.className = "font-semibold mb-1 inline-block text-left";
-      }
+      dateLabel.className = "font-semibold mb-1 inline-block text-left text-gray-800";
       dateLabel.textContent = day;
       cell.appendChild(dateLabel);
 
-      // 内容
+      // 今日バッジ（右上）
+      if (cellDate === todayISO) {
+        const badge = document.createElement("div");
+        badge.textContent = "today";
+        badge.className = "absolute top-1 right-1 bg-black text-white text-[10px] px-1.5 py-0.5 rounded";
+        cell.appendChild(badge);
+      }
+
       if (hasLog) {
+        const rec = logs.find(l => l.date === cellDate);
         const ymd = cellDate.replace(/-/g, "");
         const link = document.createElement("a");
         link.href = `/logs/${ymd}/`;
-        link.className = "inline-block text-blue-600 hover:underline";
-        link.textContent = "確認";
+        link.className = "block no-underline text-gray-800";
+
+        const topRow = document.createElement("div");
+        topRow.className = "flex items-center justify-center mb-1";
+        const mini = miniSleepSVG(rec?.sleep_time, rec?.wakeup_time);
+        if (mini) topRow.appendChild(mini);
+
+        const good = document.createElement("div");
+        good.className = "text-xs text-gray-700 text-center";
+        good.textContent = truncateHead(rec?.good_1, 6);
+
+        link.appendChild(topRow);
+        link.appendChild(good);
         cell.appendChild(link);
       } else {
+        // 当月のみ新規作成ボタンを出す
         const plus = document.createElement("a");
         plus.href = `{% url 'logs:create' %}?date=${cellDate}`;
         plus.title = `${cellDate} のログを作成`;
-        plus.className =
-          "absolute top-1 right-1 w-6 h-6 grid place-items-center rounded-full bg-green-500 text-white text-base leading-none hover:bg-green-600 shadow";
+        plus.className = "absolute top-1 right-1 w-6 h-6 grid place-items-center rounded-full bg-green-500 text-white text-base leading-none hover:bg-green-600 shadow";
         plus.textContent = "+";
         cell.appendChild(plus);
       }
 
+      const overlay = document.createElement("div");
+      overlay.className = "pointer-events-none absolute inset-0 bg-gray-200 opacity-0 group-hover:opacity-30 transition-opacity";
+      cell.appendChild(overlay);
+
       calendarGrid.appendChild(cell);
     }
 
-    // --- 次月の日付を挿入（末尾の空き部分） ---
+    // ---------- 翌月分（末尾の空き） ----------
     const lastWeekDay = lastDay.getDay();
-    const nextMonthDays = 6 - lastWeekDay;
-    for (let i = 1; i <= nextMonthDays; i++) {
-      const nextMonthDate = new Date(year, month + 1, i);
-      const cellDate = `${nextMonthDate.getFullYear()}-${String(nextMonthDate.getMonth() + 1).padStart(2, '0')}-${String(nextMonthDate.getDate()).padStart(2, '0')}`;
+    const tail = 6 - lastWeekDay;
+    for (let i = 1; i <= tail; i++) {
+      const dt = new Date(year, month + 1, i);
+      const cellDate = `${dt.getFullYear()}-${String(dt.getMonth()+1).padStart(2,'0')}-${String(dt.getDate()).padStart(2,'0')}`;
       const hasLog = logDateSet.has(cellDate);
 
+      // 例：当月ブロック
       const cell = document.createElement("div");
-      cell.className = "relative h-24 p-2 text-sm border bg-gray-50 text-gray-400"; // ← 薄い表示
+      cell.className = "relative group h-24 p-2 text-sm border text-left transition-colors";
 
       const dateLabel = document.createElement("div");
-      dateLabel.className = "font-semibold mb-1";
+      dateLabel.className = "font-semibold mb-1 inline-block text-left text-gray-500";
       dateLabel.textContent = i;
       cell.appendChild(dateLabel);
 
+      // 今日バッジ（翌月セルでも該当日なら付ける）
+      if (cellDate === todayISO) {
+        const badge = document.createElement("div");
+        badge.textContent = "today";
+        badge.className = "absolute top-1 right-1 bg-black text-white text-[10px] px-1.5 py-0.5 rounded";
+        cell.appendChild(badge);
+      }
+
       if (hasLog) {
+        const rec = logs.find(l => l.date === cellDate);
         const ymd = cellDate.replace(/-/g, "");
         const link = document.createElement("a");
         link.href = `/logs/${ymd}/`;
-        link.className = "inline-block text-blue-400 hover:underline";
-        link.textContent = "確認";
+        link.className = "block no-underline text-gray-600";
+
+        const topRow = document.createElement("div");
+        topRow.className = "flex items-center justify-center mb-1";
+        const mini = miniSleepSVG(rec?.sleep_time, rec?.wakeup_time);
+        if (mini) topRow.appendChild(mini);
+
+        const good = document.createElement("div");
+        good.className = "text-xs text-gray-600 text-center";
+        good.textContent = truncateHead(rec?.good_1, 6);
+
+        link.appendChild(topRow);
+        link.appendChild(good);
         cell.appendChild(link);
       }
-
       calendarGrid.appendChild(cell);
     }
   }
-
 
 
 

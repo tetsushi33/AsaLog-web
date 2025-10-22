@@ -1,7 +1,7 @@
 {% extends "base.html" %}
 {% block content %}
 <div class="max-w-3xl mx-auto">
-  <h2 class="text-2xl font-bold mb-6">新しいログを作成</h2>
+  <h2 class="text-2xl font-bold mb-6">新規ログ作成</h2>
 
   <form action="{% url 'logs:create' %}" method="post" class="space-y-6 bg-white p-6 rounded shadow">
     {% csrf_token %}
@@ -11,6 +11,19 @@
       <span class="font-medium text-gray-900">{{ prefill_date }}</span>
     </div>
     <input type="hidden" name="date" value="{{ prefill_date }}">
+
+    {# 入眠・起床 #}
+    <div>
+      <label for="sleep_time" class="block font-medium">入眠時間:</label>
+      <input type="datetime-local" id="sleep_time" name="sleep_time"
+             class="mt-1 p-2 border rounded w-full">
+    </div>
+
+    <div>
+      <label for="wakeup_time" class="block font-medium">起床時間:</label>
+      <input type="datetime-local" id="wakeup_time" name="wakeup_time"
+             class="mt-1 p-2 border rounded w-full">
+    </div>
 
     {# 良かったこと 3つ #}
     <div>
@@ -40,19 +53,6 @@
       <textarea name="growth" rows="3"
                 class="mt-1 p-2 border rounded w-full"
                 placeholder="例：睡眠前のスマホ時間を10分短くできた"></textarea>
-    </div>
-
-    {# 入眠・起床 #}
-    <div>
-      <label for="sleep_time" class="block font-medium">入眠時間:</label>
-      <input type="datetime-local" id="sleep_time" name="sleep_time"
-             class="mt-1 p-2 border rounded w-full">
-    </div>
-
-    <div>
-      <label for="wakeup_time" class="block font-medium">起床時間:</label>
-      <input type="datetime-local" id="wakeup_time" name="wakeup_time"
-             class="mt-1 p-2 border rounded w-full">
     </div>
 
     {# 気分（1〜10） #}
