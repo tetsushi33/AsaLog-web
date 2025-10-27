@@ -46,7 +46,7 @@ def detail_by_date(request, yyyymmdd):
     show_next = Log.objects.filter(date=next_date).exists()
     return render(
         request, 
-        "logs/detail.html", 
+        "logs/detail2.html", 
         {
             "log": log, 
             "sleep_duration_str": sleep_duration_str, 
