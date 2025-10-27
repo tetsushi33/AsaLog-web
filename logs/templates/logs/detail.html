@@ -97,6 +97,12 @@
           {% endif %}
         </div>
       </div>
+      {% if log.photo %}
+        <div class="mb-6 rounded-lg border bg-white p-4 shadow">
+          <h3 class="mb-2 text-lg font-semibold">記録写真</h3>
+          <img src="{{ log.photo.url }}" alt="記録写真" class="w-64 rounded border">
+        </div>
+      {% endif %}
     </div>
   </div>
 
@@ -234,6 +240,33 @@
     {% csrf_token %}
     <h3 class="text-xl font-semibold">編集フォーム</h3>
 
+    <div class="mt-4">
+      <label class="block font-medium">写真記録:</label>
+      {% if log.photo %}
+        <div class="mb-2">
+          <img src="{{ log.photo.url }}" alt="ログ写真" class="w-64 border rounded">
+        </div>
+      {% endif %}
+    
+      <button type="button"
+              onclick="openCamera()"
+              class="bg-gray-600 text-white px-3 py-1 rounded">
+        📷 カメラを起動
+      </button>
+    
+      <div id="cameraContainer" class="hidden mt-2">
+        <video id="video" autoplay playsinline class="rounded border w-[320px] h-[240px]"></video>
+        <canvas id="canvas" class="hidden mt-2 border rounded" width="320" height="240"></canvas>
+    
+        <div class="mt-2 flex gap-3">
+          <button type="button" onclick="takePhoto()" class="bg-blue-500 text-white px-3 py-1 rounded">撮影</button>
+          <button type="button" onclick="savePhoto()" class="bg-green-500 text-white px-3 py-1 rounded hidden" id="saveBtn">保存</button>
+          <button type="button" onclick="retakePhoto()" class="bg-yellow-500 text-white px-3 py-1 rounded hidden" id="retakeBtn">もう一度</button>
+        </div>
+        <input type="hidden" name="photo_data" id="photoData">
+      </div>
+    </div>    
+
     <div>
       <label for="sleep_time" class="block font-medium">入眠時間:</label>
       <input type="datetime-local" id="sleep_time" name="sleep_time"
@@ -293,4 +326,54 @@
 
 {# 睡眠円グラフのJS #}
 <script src="{% static 'logs/sleepClock.js' %}?v=2"></script>
+<script>
+  let videoStream;
+
+  function openCamera() {
+    document.getElementById('cameraContainer').classList.remove('hidden');
+    navigator.mediaDevices.getUserMedia({ video: true })
+      .then(stream => {
+        videoStream = stream;
+        const video = document.getElementById('video');
+        video.srcObject = stream;
+      })
+      .catch(err => {
+        alert('カメラにアクセスできません: ' + err.message);
+      });
+  }
+
+  function takePhoto() {
+    const video = document.getElementById('video');
+    const canvas = document.getElementById('canvas');
+    const context = canvas.getContext('2d');
+    canvas.classList.remove('hidden');
+    context.drawImage(video, 0, 0, canvas.width, canvas.height);
+
+    document.getElementById('saveBtn').classList.remove('hidden');
+    document.getElementById('retakeBtn').classList.remove('hidden');
+    video.pause();
+  }
+
+  function savePhoto() {
+    const canvas = document.getElementById('canvas');
+    const dataUrl = canvas.toDataURL('image/jpeg');
+    document.getElementById('photoData').value = dataUrl;
+
+    if (videoStream) {
+      videoStream.getTracks().forEach(track => track.stop());
+    }
+
+    alert("画像をフォームに保存しました");
+  }
+
+  function retakePhoto() {
+    document.getElementById('canvas').classList.add('hidden');
+    document.getElementById('saveBtn').classList.add('hidden');
+    document.getElementById('retakeBtn').classList.add('hidden');
+
+    const video = document.getElementById('video');
+    video.play();
+  }
+</script>
+
 {% endblock %}

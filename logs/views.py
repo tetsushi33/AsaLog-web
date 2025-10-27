@@ -9,6 +9,8 @@ import json
 from django.core.serializers.json import DjangoJSONEncoder
 from datetime import datetime
 from datetime import timedelta
+import base64
+from django.core.files.base import ContentFile
 
 def index(request):
     latest_log_list = Log.objects.values(
@@ -67,6 +69,13 @@ def update_log_by_date(request, yyyymmdd):
         log.good_3 = (request.POST.get("good_3") or "").strip()
         log.growth = (request.POST.get("growth") or "").strip()
         log.comment = (request.POST.get("comment") or "").strip()
+        # 撮影された画像データを処理
+        photo_data = request.POST.get("photo_data")
+        if photo_data:
+            format, imgstr = photo_data.split(';base64,')
+            ext = format.split('/')[-1]
+            log.photo = ContentFile(base64.b64decode(imgstr), name=f"log_{yyyymmdd}.{ext}")
+        # 気分
         try:
             log.mood = int(request.POST.get("mood", log.mood))
         except (TypeError, ValueError):
@@ -177,6 +186,13 @@ def create_log(request):
         sleep_time = parse_dt("sleep_time")
         wakeup_time = parse_dt("wakeup_time")
 
+        photo_data = request.POST.get("photo_data")
+        photo_file = None
+        if photo_data:
+            format, imgstr = photo_data.split(';base64,')
+            ext = format.split('/')[-1]
+            photo_file = ContentFile(base64.b64decode(imgstr), name=f"captured.{ext}")
+
         # date はモデルの default=timezone.localdate に任せる
         log = Log(
             date=date_val,
@@ -187,8 +203,15 @@ def create_log(request):
             mood=mood,
             sleep_time=sleep_time,
             wakeup_time=wakeup_time,
+            photo=photo_file,
         )
         # sleep_duration は models.Log.save() で自動計算される
+
+        # カメラ画像の処理
+        photo_file = request.FILES.get("photo")
+        if photo_file:
+            log.photo = photo_file
+
         log.save()
 
         return redirect("logs:index")

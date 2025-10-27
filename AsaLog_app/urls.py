@@ -17,8 +17,15 @@ Including another URLconf
 
 from django.contrib import admin
 from django.urls import path, include
+from django.conf import settings
+from django.conf.urls.static import static
+
 
 urlpatterns = [
     path("admin/", admin.site.urls), # pathには少なくとも二つの引数が必要（rout, view）
     path("logs/", include("logs.urls")), # includeは他のURLconf(別ファイルのurls.py)を参照するのに使う
 ]
+
+# メディアファイルの提供（開発環境専用）
+if settings.DEBUG:
+    urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
