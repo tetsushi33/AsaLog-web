@@ -11,6 +11,9 @@ from datetime import datetime
 from datetime import timedelta
 import base64
 from django.core.files.base import ContentFile
+import os
+from django.core.files.storage import default_storage
+
 
 def index(request):
     latest_log_list = Log.objects.values(
@@ -46,7 +49,7 @@ def detail_by_date(request, yyyymmdd):
     show_next = Log.objects.filter(date=next_date).exists()
     return render(
         request, 
-        "logs/detail.html", 
+        "logs/detail2.html", 
         {
             "log": log, 
             "sleep_duration_str": sleep_duration_str, 
@@ -62,25 +65,51 @@ def detail_by_date(request, yyyymmdd):
 def update_log_by_date(request, yyyymmdd):
     d = _yyyymmdd_to_date(yyyymmdd)
     log = get_object_or_404(Log, date=d)
+
     if request.method == "POST":
-        # ← ここは今の update_log と同じ処理でOK（log を date で取っているだけ）
+        # 既存の部分更新はそのまま
         log.good_1 = (request.POST.get("good_1") or "").strip()
         log.good_2 = (request.POST.get("good_2") or "").strip()
         log.good_3 = (request.POST.get("good_3") or "").strip()
         log.growth = (request.POST.get("growth") or "").strip()
         log.comment = (request.POST.get("comment") or "").strip()
-        # 撮影された画像データを処理
+
+        # --- 写真（上書き保存）ここから ---
         photo_data = request.POST.get("photo_data")
         if photo_data:
-            format, imgstr = photo_data.split(';base64,')
-            ext = format.split('/')[-1]
-            log.photo = ContentFile(base64.b64decode(imgstr), name=f"log_{yyyymmdd}.{ext}")
+            # データURL: 'data:image/png;base64,....'
+            try:
+                fmt, imgstr = photo_data.split(';base64,')
+                mime = fmt.split(':', 1)[1]               # 'image/png'
+                ext = mime.split('/')[-1].lower()         # 'png' など
+            except Exception:
+                mime = 'image/jpeg'
+                ext = 'jpg'
+
+            # 既存ファイルがあれば削除（これが肝！）
+            if log.photo and log.photo.name:
+                try:
+                    log.photo.storage.delete(log.photo.name)
+                except Exception:
+                    # ストレージ上に無ければ無視
+                    pass
+
+            # 固定名: 例 20251025-1.jpg
+            filename = f"{yyyymmdd}-1.{ext}"
+
+            # decodeして同名でsave（upload_to配下に保存されます）
+            content = ContentFile(base64.b64decode(imgstr))
+            # save=False でフィールドだけ差し替え、最後に log.save()
+            log.photo.save(filename, content, save=False)
+        # --- 写真ここまで ---
+
         # 気分
         try:
             log.mood = int(request.POST.get("mood", log.mood))
         except (TypeError, ValueError):
             pass
 
+        # 日時
         def parse_dt(name, current):
             v = request.POST.get(name)
             if not v: return current
@@ -96,14 +125,14 @@ def update_log_by_date(request, yyyymmdd):
         else:
             log.sleep_duration = None
 
-        # date は変更しない（編集で日付を動かさない方針）
         log.save()
         return redirect("logs:detail_by_date", yyyymmdd=yyyymmdd)
 
-    return render(request, "logs/detail.html", {
+    return render(request, "logs/detail2.html", {
         "log": log,
         "mood_scale": range(1, 11),
     })
+
 
 def delete_log_by_date(request, yyyymmdd):
     d = _yyyymmdd_to_date(yyyymmdd)
@@ -186,12 +215,12 @@ def create_log(request):
         sleep_time = parse_dt("sleep_time")
         wakeup_time = parse_dt("wakeup_time")
 
-        photo_data = request.POST.get("photo_data")
-        photo_file = None
-        if photo_data:
-            format, imgstr = photo_data.split(';base64,')
-            ext = format.split('/')[-1]
-            photo_file = ContentFile(base64.b64decode(imgstr), name=f"captured.{ext}")
+        #photo_data = request.POST.get("photo_data")
+        #photo_file = None
+        #if photo_data:
+        #    format, imgstr = photo_data.split(';base64,')
+        #    ext = format.split('/')[-1]
+        #    photo_file = ContentFile(base64.b64decode(imgstr), name=f"captured.{ext}")
 
         # date はモデルの default=timezone.localdate に任せる
         log = Log(
@@ -203,14 +232,51 @@ def create_log(request):
             mood=mood,
             sleep_time=sleep_time,
             wakeup_time=wakeup_time,
-            photo=photo_file,
+            #photo=photo_file,
         )
-        # sleep_duration は models.Log.save() で自動計算される
 
-        # カメラ画像の処理
-        photo_file = request.FILES.get("photo")
-        if photo_file:
-            log.photo = photo_file
+        # ---- 画像（カメラbase64を優先、なければFILES）----
+        final_fileobj = None
+        final_filename = None
+
+        photo_data = request.POST.get("photo_data")
+        if photo_data:
+            # data:image/png;base64,xxxx 形式を想定
+            try:
+                fmt, imgstr = photo_data.split(";base64,")
+                mime = fmt.split(":", 1)[1]             # e.g. image/png
+                ext = mime.split("/")[-1].lower()       # png / jpeg / webp など
+            except Exception:
+                ext = "jpg"  # 失敗時はjpgでフォールバック
+                imgstr = photo_data
+
+            final_filename = f"{date_val.strftime('%Y%m%d')}-1.{ext}"
+            final_fileobj = ContentFile(base64.b64decode(imgstr))
+        else:
+            uploaded = request.FILES.get("photo")
+            if uploaded:
+                root, up_ext = os.path.splitext(uploaded.name)
+                safe_ext = (up_ext or ".jpg").lower()
+                final_filename = f"{date_val.strftime('%Y%m%d')}-1{safe_ext}"
+                final_fileobj = uploaded
+
+        # ---- 同名上書き（upload_to対応）----
+        if final_fileobj and final_filename:
+            # フィールド取得
+            photo_field = Log._meta.get_field("photo")
+            # upload_to が関数/パスいずれでもOKなように、実インスタンスと一緒に解決
+            storage_path = photo_field.generate_filename(log, final_filename)
+
+            # 既存があれば削除（同名ファイルは必ず消す）
+            try:
+                if default_storage.exists(storage_path):
+                    default_storage.delete(storage_path)
+            except Exception:
+                pass  # ストレージ種別によっては存在チェックで例外が出ることがあるので握りつぶす
+
+            # フィールドにセット（save=Falseで最後にまとめて保存）
+            # UploadedFile の場合 name が上書きされるよう、明示的に filename を指定して保存
+            log.photo.save(final_filename, final_fileobj, save=False)
 
         log.save()
 
@@ -223,4 +289,3 @@ def create_log(request):
         "mood_scale": range(1, 11),
         "prefill_date": display_date,   # 表示＆hidden でPOST
     })
-

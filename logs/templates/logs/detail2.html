@@ -1,0 +1,473 @@
+{% extends "base.html" %}
+{% load static %}
+{% block content %}
+<div class="max-w-3xl mx-auto">
+
+  {# 1) 日付 + 最終更新（カード） #}
+  <div class="mb-6 rounded-lg border bg-white p-4 shadow">
+    <div class="flex flex-col sm:flex-row justify-between items-center gap-3">
+      {% if show_prev %}
+      <a href="{% url 'logs:detail_by_date' yyyymmdd=prev_date|date:'Ymd' %}"
+         class="bg-white border border-gray-400 hover:bg-gray-100 text-gray-800 font-medium px-4 py-2 rounded shadow text-sm">
+        ← 前日（{{ prev_date|date:"m月d日" }}）
+      </a>
+      {% else %}
+        <div class="text-gray-400 px-4 py-2 text-sm">← 前日（{{ prev_date|date:"m月d日" }}）</div>
+      {% endif %}
+
+      <div class="text-center">
+        <div class="text-xl font-semibold text-gray-800">
+          {{ log.date|date:"Y年m月d日" }}
+        </div>
+        <div class="text-sm text-gray-500 mt-1">
+          最終更新: {{ log.updated_at|date:"Y/m/d H:i" }}
+        </div>
+      </div>
+
+      <div>
+        {% if show_next %}
+        <a href="{% url 'logs:detail_by_date' yyyymmdd=next_date|date:'Ymd' %}"
+          class="bg-white border border-gray-400 hover:bg-gray-100 text-gray-800 font-medium px-4 py-2 rounded shadow text-sm">
+          翌日（{{ next_date|date:"m月d日" }}） →
+        </a>
+        {% else %}
+          <div class="text-gray-400 px-4 py-2 text-sm">翌日（{{ next_date|date:"m月d日" }}） →</div>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+
+  <div class="mb-6 flex flex-col md:flex-row gap-6">
+    {# 2) 睡眠時間（独立ブロック） #}
+    <div class="relative flex-1 rounded-lg border bg-white p-4 shadow">
+      <button onclick="openModal('sleepModal')"
+              class="absolute right-3 top-3 text-xs px-2 py-1 border rounded bg-white hover:bg-gray-50">編集</button>
+      <h3 class="mb-3 text-lg font-semibold">睡眠時間</h3>
+      <div class="flex flex-col items-center">
+        <svg id="sleepClock"
+            width="280" height="220" viewBox="0 0 220 220" class="shrink-0"
+            {% if log.sleep_time and log.wakeup_time %}
+              data-sleep-h="{{ log.sleep_time|date:'H' }}"
+              data-sleep-m="{{ log.sleep_time|date:'i' }}"
+              data-wake-h="{{ log.wakeup_time|date:'H' }}"
+              data-wake-m="{{ log.wakeup_time|date:'i' }}"
+            {% endif %}>
+          <circle cx="120" cy="110" r="90" fill="white" stroke="#9ca3af" stroke-width="2"/>
+          <path id="sleepArc" fill="none" stroke="#4f46e5" stroke-width="18" stroke-linecap="round"/>
+          <circle id="startDot" r="5" fill="#4f46e5"/>
+          <circle id="endDot" r="5" fill="#4f46e5"/>
+          <text x="120" y="110" text-anchor="middle" font-size="18" fill="#374151">
+            {% if sleep_duration_str %}{{ sleep_duration_str }}{% else %}未入力{% endif %}
+          </text>
+          <text x="120" y="18"  text-anchor="middle" font-size="18" fill="#374151">0:00</text>
+          <text x="120" y="215" text-anchor="middle" font-size="18" fill="#374151">12:00</text>
+          <text x="230" y="114" text-anchor="middle" font-size="18" fill="#374151">6:00</text>
+          <text x="0"  y="114" text-anchor="middle" font-size="18" fill="#374151">18:00</text>
+        </svg>
+
+        <div class="text-2xl text-gray-800 space-y-1 mt-4">
+          <div>
+            {% if log.sleep_time and log.wakeup_time %}
+              {{ log.sleep_time|date:"m/d H:i" }} 〜 {{ log.wakeup_time|date:"m/d H:i" }}
+            {% else %}
+              <span class="text-gray-400">未入力</span>
+            {% endif %}
+          </div>
+        </div>
+      </div>
+    </div>
+
+    {# 記録写真（独立ブロック） #}
+    <div class="relative flex-1 rounded-lg border bg-white p-4 shadow">
+      <button onclick="openModal('photoModal')"
+              class="absolute right-3 top-3 text-xs px-2 py-1 border rounded bg-white hover:bg-gray-50">編集</button>
+      <h3 class="mb-3 text-lg font-semibold">記録写真</h3>
+      {% if log.photo %}
+        <img src="{{ log.photo.url }}?v={{ log.updated_at|date:'U' }}" alt="記録写真"
+            class="w-full max-w-xs rounded border">
+      {% else %}
+        <div class="text-gray-400">写真がありません</div>
+      {% endif %}
+    </div>
+  </div>
+
+  {# 3) 今日の良かったこと #}
+  <div class="relative mb-6 rounded-lg border bg-white p-4 shadow">
+    <button onclick="openModal('goodModal')"
+            class="absolute right-3 top-3 text-xs px-2 py-1 border rounded bg-white hover:bg-gray-50">編集</button>
+    <h3 class="mb-3 text-lg font-semibold">今日の良かったこと</h3>
+
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-3 items-stretch">
+      <div class="rounded-lg border bg-gray-50 p-4 shadow-sm">
+        {% if log.good_1 %}<div class="text-gray-800 whitespace-pre-wrap">{{ log.good_1 }}</div>
+        {% else %}<div class="text-gray-400">（未入力）</div>{% endif %}
+      </div>
+      <div class="rounded-lg border bg-gray-50 p-4 shadow-sm">
+        {% if log.good_2 %}<div class="text-gray-800 whitespace-pre-wrap">{{ log.good_2 }}</div>
+        {% else %}<div class="text-gray-400">（未入力）</div>{% endif %}
+      </div>
+      <div class="rounded-lg border bg-gray-50 p-4 shadow-sm">
+        {% if log.good_3 %}<div class="text-gray-800 whitespace-pre-wrap">{{ log.good_3 }}</div>
+        {% else %}<div class="text-gray-400">（未入力）</div>{% endif %}
+      </div>
+    </div>
+  </div>
+
+  {# 4) 昨日から成長した点 #}
+  <div class="relative mb-6 rounded-lg border bg-white p-4 shadow">
+    <button onclick="openModal('growthModal')"
+            class="absolute right-3 top-3 text-xs px-2 py-1 border rounded bg-white hover:bg-gray-50">編集</button>
+    <h3 class="mb-2 text-lg font-semibold">昨日から成長した点</h3>
+    {% if log.growth %}
+      <div class="text-gray-800 whitespace-pre-wrap">{{ log.growth }}</div>
+    {% else %}
+      <div class="text-gray-400">（未入力）</div>
+    {% endif %}
+  </div>
+
+  {# 5) コメント #}
+  <div class="relative mb-6 rounded-lg border bg-white p-4 shadow">
+    <button onclick="openModal('commentModal')"
+            class="absolute right-3 top-3 text-xs px-2 py-1 border rounded bg-white hover:bg-gray-50">編集</button>
+    <h3 class="mb-2 text-lg font-semibold">コメント</h3>
+    {% if log.comment %}
+      <div class="text-gray-800 whitespace-pre-wrap">{{ log.comment }}</div>
+    {% else %}
+      <div class="text-gray-400">（未入力）</div>
+    {% endif %}
+  </div>
+
+  {# 6) 気分 #}
+  <div class="relative mb-8 rounded-lg border bg-white p-4 shadow">
+    <button onclick="openModal('moodModal')"
+            class="absolute right-3 top-3 text-xs px-2 py-1 border rounded bg-white hover:bg-gray-50">編集</button>
+    <h3 class="mb-3 text-lg font-semibold">気分</h3>
+    <div class="flex flex-col items-center gap-3">
+      <div class="w-full flex flex-col items-center">
+        <div class="flex w-full gap-1">
+          {% for i in mood_scale %}
+            {% if i <= log.mood %}
+              {% if i == 1 %}<div class="flex-1 h-5 rounded" style="background-color:hsl(140, 70%, 88%);"></div>
+              {% elif i == 2 %}<div class="flex-1 h-5 rounded" style="background-color:hsl(140, 70%, 85%);"></div>
+              {% elif i == 3 %}<div class="flex-1 h-5 rounded" style="background-color:hsl(140, 70%, 81%);"></div>
+              {% elif i == 4 %}<div class="flex-1 h-5 rounded" style="background-color:hsl(140, 70%, 78%);"></div>
+              {% elif i == 5 %}<div class="flex-1 h-5 rounded" style="background-color:hsl(140, 70%, 74%);"></div>
+              {% elif i == 6 %}<div class="flex-1 h-5 rounded" style="background-color:hsl(140, 70%, 70%);"></div>
+              {% elif i == 7 %}<div class="flex-1 h-5 rounded" style="background-color:hsl(140, 70%, 65%);"></div>
+              {% elif i == 8 %}<div class="flex-1 h-5 rounded" style="background-color:hsl(140, 70%, 60%);"></div>
+              {% elif i == 9 %}<div class="flex-1 h-5 rounded" style="background-color:hsl(140, 70%, 55%);"></div>
+              {% else %}<div class="flex-1 h-5 rounded" style="background-color:hsl(140, 70%, 50%);"></div>
+              {% endif %}
+            {% else %}
+              <div class="flex-1 h-5 rounded bg-gray-200"></div>
+            {% endif %}
+          {% endfor %}
+        </div>
+        <div class="flex w-full justify-between mt-1 text-xs text-gray-500 font-medium">
+          {% for i in mood_scale %}<span class="flex-1 text-center">{{ i }}</span>{% endfor %}
+        </div>
+      </div>
+    </div>
+  </div>
+
+  {# 下部の操作（削除・戻るのみ維持） #}
+  <div class="flex justify-between items-center mb-4">
+    <form action="{% url 'logs:delete_by_date' yyyymmdd=log.date|date:'Ymd' %}" method="get"
+          onsubmit="return confirm('本当に削除しますか？');">
+      {% csrf_token %}
+      <button type="submit"
+        class="bg-red-500 hover:bg-red-600 text-white font-semibold py-2 px-4 rounded">
+        この日のデータを削除する
+      </button>
+    </form>
+    <a href="{% url 'logs:index' %}" class="text-blue-500 hover:underline">← 🗓️ カレンダー</a>
+  </div>
+</div>
+
+{# ===== モーダル郡 ===== #}
+{# 1) 睡眠 #}
+<div id="sleepModal" class="modal hidden">
+  <div class="modal-backdrop" onclick="closeModal('sleepModal')"></div>
+  <div class="modal-panel">
+    <div class="modal-header">
+      <h4 class="font-semibold">睡眠時間を編集</h4>
+      <button class="modal-close" onclick="closeModal('sleepModal')">×</button>
+    </div>
+    <form method="post" action="{% url 'logs:update_by_date' yyyymmdd=log.date|date:'Ymd' %}" class="space-y-3">
+      {% csrf_token %}
+      <label class="block text-sm font-medium">入眠時間</label>
+      <input type="datetime-local" name="sleep_time" value="{{ log.sleep_time|date:'Y-m-d\\TH:i' }}"
+             class="mt-1 p-2 border rounded w-full">
+      <label class="block text-sm font-medium">起床時間</label>
+      <input type="datetime-local" name="wakeup_time" value="{{ log.wakeup_time|date:'Y-m-d\\TH:i' }}"
+             class="mt-1 p-2 border rounded w-full">
+      <div class="flex gap-2 justify-end pt-2">
+        <button type="button" class="btn-neutral" onclick="closeModal('sleepModal')">キャンセル</button>
+        <button type="submit" class="btn-primary">保存</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+{# 2) 写真（カメラ付） #}
+<div id="photoModal" class="modal hidden">
+  <div class="modal-backdrop" onclick="closeModal('photoModal')"></div>
+  <div class="modal-panel">
+    <div class="modal-header">
+      <h4 class="font-semibold">記録写真を編集</h4>
+      <button class="modal-close" onclick="closeModal('photoModal')">×</button>
+    </div>
+    <form id="photoModalForm" method="post" enctype="multipart/form-data" action="{% url 'logs:update_by_date' yyyymmdd=log.date|date:'Ymd' %}" class="space-y-3" onsubmit="return confirm('更新しますか？');">
+      {% csrf_token %}
+      {% if log.photo %}
+        <div class="mb-2">
+          <img src="{{ log.photo.url }}?v={{ log.updated_at|date:'U' }}" alt="現在の写真" class="w-48 border rounded">
+        </div>
+        <input type="hidden" name="existing_photo_name" value="{{ log.photo.name }}">
+      {% endif %}
+
+      <div>
+        <button type="button" onclick="openCameraLocal()" class="bg-gray-600 text-white px-3 py-1 rounded">📷 カメラを起動</button>
+        <div id="cameraContainerLocal" class="hidden mt-2">
+          <video id="videoLocal" autoplay playsinline class="rounded border w-[320px] h-[240px]"></video>
+          <canvas id="canvasLocal" class="hidden mt-2 border rounded" width="320" height="240"></canvas>
+          <img id="capturedImageLocal" class="hidden mt-2 border rounded" width="320" height="240">
+          <div class="mt-2 flex gap-3">
+            <button type="button" onclick="takePhotoLocal()" id="captureBtnLocal" class="bg-blue-500 text-white px-3 py-1 rounded">撮影</button>
+            <button type="button" onclick="retakePhotoLocal()" id="retakeBtnLocal" class="bg-yellow-500 text-white px-3 py-1 rounded hidden">もう一度</button>
+          </div>
+          <input type="hidden" name="photo_data" id="photoDataLocal">
+          <input type="hidden" name="overwrite_photo" value="true">
+        </div>
+      </div>
+
+      <div class="flex gap-2 justify-end pt-2">
+        <button type="button" class="btn-neutral" onclick="closeModal('photoModal')">閉じる</button>
+        <button type="submit" id="savePhotoBtnLocal" class="btn-primary hidden">更新</button>
+      </div>
+    </form>               
+  </div>                  
+</div>    
+
+{# 3) 良かったこと #}
+<div id="goodModal" class="modal hidden">
+  <div class="modal-backdrop" onclick="closeModal('goodModal')"></div>
+  <div class="modal-panel">
+    <div class="modal-header">
+      <h4 class="font-semibold">今日の良かったことを編集</h4>
+      <button class="modal-close" onclick="closeModal('goodModal')">×</button>
+    </div>
+    <form method="post" action="{% url 'logs:update_by_date' yyyymmdd=log.date|date:'Ymd' %}" class="space-y-3">
+      {% csrf_token %}
+      <label class="block text-sm font-medium">①</label>
+      <input type="text" name="good_1" maxlength="200" value="{{ log.good_1 }}" class="mt-1 p-2 border rounded w-full">
+      <label class="block text-sm font-medium">②</label>
+      <input type="text" name="good_2" maxlength="200" value="{{ log.good_2 }}" class="mt-1 p-2 border rounded w-full">
+      <label class="block text-sm font-medium">③</label>
+      <input type="text" name="good_3" maxlength="200" value="{{ log.good_3 }}" class="mt-1 p-2 border rounded w-full">
+      <div class="flex gap-2 justify-end pt-2">
+        <button type="button" class="btn-neutral" onclick="closeModal('goodModal')">キャンセル</button>
+        <button type="submit" class="btn-primary">保存</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+{# 4) 成長 #}
+<div id="growthModal" class="modal hidden">
+  <div class="modal-backdrop" onclick="closeModal('growthModal')"></div>
+  <div class="modal-panel">
+    <div class="modal-header">
+      <h4 class="font-semibold">昨日から成長した点を編集</h4>
+      <button class="modal-close" onclick="closeModal('growthModal')">×</button>
+    </div>
+    <form method="post" action="{% url 'logs:update_by_date' yyyymmdd=log.date|date:'Ymd' %}" class="space-y-3">
+      {% csrf_token %}
+      <textarea name="growth" rows="4" class="mt-1 p-2 border rounded w-full"
+                placeholder="例：睡眠前のスマホ時間を10分短くできた">{{ log.growth }}</textarea>
+      <div class="flex gap-2 justify-end pt-2">
+        <button type="button" class="btn-neutral" onclick="closeModal('growthModal')">キャンセル</button>
+        <button type="submit" class="btn-primary">保存</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+{# 5) コメント #}
+<div id="commentModal" class="modal hidden">
+  <div class="modal-backdrop" onclick="closeModal('commentModal')"></div>
+  <div class="modal-panel">
+    <div class="modal-header">
+      <h4 class="font-semibold">コメントを編集</h4>
+      <button class="modal-close" onclick="closeModal('commentModal')">×</button>
+    </div>
+    <form method="post" action="{% url 'logs:update_by_date' yyyymmdd=log.date|date:'Ymd' %}" class="space-y-3">
+      {% csrf_token %}
+      <textarea id="comment" name="comment" rows="4" class="mt-1 p-2 border rounded w-full">{{ log.comment }}</textarea>
+      <div class="flex gap-2 justify-end pt-2">
+        <button type="button" class="btn-neutral" onclick="closeModal('commentModal')">キャンセル</button>
+        <button type="submit" class="btn-primary">保存</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+{# 6) 気分 #}
+<div id="moodModal" class="modal hidden">
+  <div class="modal-backdrop" onclick="closeModal('moodModal')"></div>
+  <div class="modal-panel">
+    <div class="modal-header">
+      <h4 class="font-semibold">気分を編集</h4>
+      <button class="modal-close" onclick="closeModal('moodModal')">×</button>
+    </div>
+    <form method="post" action="{% url 'logs:update_by_date' yyyymmdd=log.date|date:'Ymd' %}" class="space-y-3">
+      {% csrf_token %}
+      <div class="flex flex-wrap gap-3">
+        {% for i in mood_scale %}
+          <label class="inline-flex items-center gap-1">
+            <input type="radio" name="mood" value="{{ i }}" {% if log.mood == i %}checked{% endif %}>
+            <span>{{ i }}</span>
+          </label>
+        {% endfor %}
+      </div>
+      <div class="flex gap-2 justify-end pt-2">
+        <button type="button" class="btn-neutral" onclick="closeModal('moodModal')">キャンセル</button>
+        <button type="submit" class="btn-primary">保存</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+{# スタイル（簡易モーダル） #}
+<style>
+  .modal { position: fixed; inset: 0; z-index: 50; }
+  .modal-backdrop { position: absolute; inset: 0; background: rgba(0,0,0,0.4); }
+  .modal-panel {
+    position: relative; margin: 5vh auto 0; max-width: 36rem;
+    background: white; border-radius: 0.75rem; box-shadow: 0 10px 25px rgba(0,0,0,0.15);
+    padding: 1rem 1rem 1.25rem;
+  }
+  .modal-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 0.5rem; }
+  .modal-close { padding: 0.25rem 0.5rem; border: 1px solid #e5e7eb; border-radius: 0.375rem; }
+  .btn-primary { background:#3b82f6; color:white; padding:0.5rem 0.75rem; border-radius:0.375rem; }
+  .btn-primary:hover { background:#2563eb; }
+  .btn-neutral { background:white; border:1px solid #d1d5db; padding:0.5rem 0.75rem; border-radius:0.375rem; }
+  .hidden { display: none; }
+</style>
+
+{# 既存の睡眠円グラフのJS #}
+<script src="{% static 'logs/sleepClock.js' %}?v=2"></script>
+<script>
+  // モーダル開閉
+  function openModal(id){ document.getElementById(id).classList.remove('hidden'); }
+  function closeModal(id){ 
+    document.getElementById(id).classList.add('hidden'); 
+    
+    // カメラストリームを停止
+    if (videoStreamLocal) {
+      videoStreamLocal.getTracks().forEach(track => track.stop());
+      videoStreamLocal = null;
+    }
+    
+    // カメラコンテナをリセット
+    const container = document.getElementById('cameraContainerLocal');
+    const video = document.getElementById('videoLocal');
+    const capturedImage = document.getElementById('capturedImageLocal');
+    const captureBtn = document.getElementById('captureBtnLocal');
+    const retakeBtn = document.getElementById('retakeBtnLocal');
+    const saveBtn = document.getElementById('savePhotoBtnLocal'); // 追加
+    const photoDataInput = document.getElementById('photoDataLocal');
+    
+    if (container && video && capturedImage) {
+      container.classList.add('hidden');
+      video.classList.remove('hidden');
+      capturedImage.classList.add('hidden');
+      captureBtn.classList.remove('hidden');
+      retakeBtn.classList.add('hidden');
+      saveBtn?.classList.add('hidden');      // ← ここで隠す
+      if (photoDataInput) photoDataInput.value = ''; // 念のためクリア
+    }
+  }
+
+  // 写真用カメラ（モーダル内スコープ）
+  let videoStreamLocal = null;
+
+  function openCameraLocal() {
+    const container = document.getElementById('cameraContainerLocal');
+    const video = document.getElementById('videoLocal');
+    
+    container.classList.remove('hidden');
+    
+    navigator.mediaDevices.getUserMedia({ video: true })
+      .then(stream => {
+        videoStreamLocal = stream;
+        video.srcObject = stream;
+      })
+      .catch(err => {
+        alert('カメラにアクセスできませんでした: ' + err);
+      });
+  }
+
+  function takePhotoLocal() {
+    const video = document.getElementById('videoLocal');
+    const canvas = document.getElementById('canvasLocal');
+    const capturedImage = document.getElementById('capturedImageLocal');
+    const photoDataInput = document.getElementById('photoDataLocal');
+    const captureBtn = document.getElementById('captureBtnLocal');
+    const retakeBtn = document.getElementById('retakeBtnLocal');
+    const saveBtn = document.getElementById('savePhotoBtnLocal');  // ← これがポイント
+    
+    const context = canvas.getContext('2d');
+    context.drawImage(video, 0, 0, 320, 240);
+    
+    const imageData = canvas.toDataURL('image/png');
+    capturedImage.src = imageData;
+    photoDataInput.value = imageData;
+    
+    // UI更新
+    video.classList.add('hidden');
+    canvas.classList.add('hidden');   // 表示はimgに統一
+    capturedImage.classList.remove('hidden');
+    captureBtn.classList.add('hidden');
+    retakeBtn.classList.remove('hidden');
+    if (saveBtn) saveBtn.classList.remove('hidden');  // ← 保存ボタンを表示
+    
+    // カメラストリームを停止
+    if (videoStreamLocal) {
+      videoStreamLocal.getTracks().forEach(track => track.stop());
+      videoStreamLocal = null;
+    }
+  }
+
+  function retakePhotoLocal() {
+    const video = document.getElementById('videoLocal');
+    const capturedImage = document.getElementById('capturedImageLocal');
+    const photoDataInput = document.getElementById('photoDataLocal');
+    const captureBtn = document.getElementById('captureBtnLocal');
+    const retakeBtn = document.getElementById('retakeBtnLocal');
+    const saveBtn = document.getElementById('savePhotoBtnLocal'); // ← これを追加
+    
+    // UI更新
+    capturedImage.classList.add('hidden');
+    video.classList.remove('hidden');
+    captureBtn.classList.remove('hidden');
+    retakeBtn.classList.add('hidden');
+    if (saveBtn) saveBtn.classList.add('hidden');     // ← 再撮影では隠す
+    photoDataInput.value = '';
+    
+    // カメラ再起動
+    openCameraLocal();
+  }
+
+  // 保存時バリデーション（念のため残す）
+  document.getElementById('savePhotoBtnLocal')?.addEventListener('click', function (e) {
+    const photoDataInput = document.getElementById('photoDataLocal');
+    if (!photoDataInput?.value) {
+      e.preventDefault();
+      alert('写真を撮影してください。');
+    }
+  });
+  
+</script>
+
+{% endblock %}
