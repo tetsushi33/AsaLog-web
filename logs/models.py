@@ -1,6 +1,7 @@
 from django.db import models
 from datetime import timedelta, date
 from django.utils import timezone   # ← 追加（重要：タイムゾーン対応）
+import os
 
 
 # Create your models here.
@@ -23,6 +24,19 @@ class Log(models.Model):
     comment = models.CharField(max_length=200)  # ログ（テキスト）
     # 気分
     mood = models.IntegerField(default=5)  # 気分（1-10 の数値）
+
+    # カメラ画像の保存パス指定
+    #def log_image_upload_to(instance, filename):
+    #    # 拡張子を保持（例: ".jpg"）
+    #    _, ext = os.path.splitext(filename)
+    #    # 例: logs/images/20251027-1.jpg
+    #    return f"logs/images/{instance.date.strftime('%Y%m%d')}-1{ext}"
+    
+    def log_image_upload_to(instance, filename):
+        return f"logs/images/{instance.date.strftime('%Y%m%d')}-1.jpeg"
+
+    photo = models.ImageField(upload_to=log_image_upload_to, null=True, blank=True)
+
 
     def save(self, *args, **kwargs):
         if self.sleep_time and self.wakeup_time:

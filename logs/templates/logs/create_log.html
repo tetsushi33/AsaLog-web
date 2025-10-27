@@ -12,6 +12,36 @@
     </div>
     <input type="hidden" name="date" value="{{ prefill_date }}">
 
+    <div class="flex items-start gap-6">
+      <!-- 左側：フォーム -->
+      <div class="flex-1">
+    
+        <!-- 入眠・起床など… -->
+    
+        <button type="button"
+                onclick="openCamera()"
+                class="mt-4 bg-gray-600 text-white px-4 py-2 rounded">
+          📷 カメラを起動
+        </button>
+      </div>
+    
+      <!-- 右側：カメラ -->
+      <div id="cameraContainer" class="hidden flex flex-col items-center">
+        <video id="video" autoplay playsinline class="rounded border w-[320px] h-[240px]"></video>
+        <canvas id="canvas" class="hidden mt-2 border rounded" width="320" height="240"></canvas>
+    
+        <div class="mt-2 flex gap-3">
+          <button type="button" onclick="takePhoto()" class="bg-blue-500 text-white px-3 py-1 rounded">撮影</button>
+          <button type="button" onclick="savePhoto()" class="bg-green-500 text-white px-3 py-1 rounded hidden" id="saveBtn">保存</button>
+          <button type="button" onclick="retakePhoto()" class="bg-yellow-500 text-white px-3 py-1 rounded hidden" id="retakeBtn">もう一度</button>
+        </div>
+    
+        <!-- 撮った画像を一時的に保持する input -->
+        <input type="hidden" name="photo_data" id="photoData">
+      </div>
+    </div>
+    
+
     {# 入眠・起床 #}
     <div>
       <label for="sleep_time" class="block font-medium">入眠時間:</label>
@@ -77,4 +107,60 @@
     <a href="{% url 'logs:index' %}" class="text-blue-500 hover:underline">← ログ一覧に戻る</a>
   </div>
 </div>
+
+<script>
+  let videoStream;
+
+  function openCamera() {
+    document.getElementById('cameraContainer').classList.remove('hidden');
+
+    navigator.mediaDevices.getUserMedia({ video: true })
+      .then(stream => {
+        videoStream = stream;
+        const video = document.getElementById('video');
+        video.srcObject = stream;
+      })
+      .catch(err => {
+        alert('カメラが利用できません: ' + err.message);
+      });
+  }
+
+  function takePhoto() {
+    const video = document.getElementById('video');
+    const canvas = document.getElementById('canvas');
+    const context = canvas.getContext('2d');
+    canvas.classList.remove('hidden');
+    context.drawImage(video, 0, 0, canvas.width, canvas.height);
+
+    // ボタン表示切替
+    document.getElementById('saveBtn').classList.remove('hidden');
+    document.getElementById('retakeBtn').classList.remove('hidden');
+
+    // 映像停止
+    video.pause();
+  }
+
+  function savePhoto() {
+    const canvas = document.getElementById('canvas');
+    const dataUrl = canvas.toDataURL('image/jpeg');
+    document.getElementById('photoData').value = dataUrl;
+
+    // ストリーム停止
+    if (videoStream) {
+      videoStream.getTracks().forEach(track => track.stop());
+    }
+
+    alert("写真をフォームに保存しました（まだ送信していません）");
+  }
+
+  function retakePhoto() {
+    document.getElementById('canvas').classList.add('hidden');
+    document.getElementById('saveBtn').classList.add('hidden');
+    document.getElementById('retakeBtn').classList.add('hidden');
+
+    const video = document.getElementById('video');
+    video.play();
+  }
+</script>
+
 {% endblock %}
