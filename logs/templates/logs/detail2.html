@@ -82,8 +82,9 @@
       <button onclick="openModal('photoModal')"
               class="absolute right-3 top-3 text-xs px-2 py-1 border rounded bg-white hover:bg-gray-50">編集</button>
       <h3 class="mb-3 text-lg font-semibold">記録写真</h3>
-      {% if log.photo and log.photo.url %}
-        <img src="{{ log.photo.url }}" alt="記録写真" class="w-full max-w-xs rounded border">
+      {% if log.photo %}
+        <img src="{{ log.photo.url }}?v={{ log.updated_at|date:'U' }}" alt="記録写真"
+            class="w-full max-w-xs rounded border">
       {% else %}
         <div class="text-gray-400">写真がありません</div>
       {% endif %}
@@ -216,12 +217,13 @@
       <h4 class="font-semibold">記録写真を編集</h4>
       <button class="modal-close" onclick="closeModal('photoModal')">×</button>
     </div>
-    <form method="post" action="{% url 'logs:update_by_date' yyyymmdd=log.date|date:'Ymd' %}" class="space-y-3">
+    <form id="photoModalForm" method="post" enctype="multipart/form-data" action="{% url 'logs:update_by_date' yyyymmdd=log.date|date:'Ymd' %}" class="space-y-3" onsubmit="return confirm('更新しますか？');">
       {% csrf_token %}
       {% if log.photo %}
         <div class="mb-2">
-          <img src="{{ log.photo.url }}" alt="現在の写真" class="w-48 border rounded">
+          <img src="{{ log.photo.url }}?v={{ log.updated_at|date:'U' }}" alt="現在の写真" class="w-48 border rounded">
         </div>
+        <input type="hidden" name="existing_photo_name" value="{{ log.photo.name }}">
       {% endif %}
 
       <div>
@@ -229,22 +231,23 @@
         <div id="cameraContainerLocal" class="hidden mt-2">
           <video id="videoLocal" autoplay playsinline class="rounded border w-[320px] h-[240px]"></video>
           <canvas id="canvasLocal" class="hidden mt-2 border rounded" width="320" height="240"></canvas>
+          <img id="capturedImageLocal" class="hidden mt-2 border rounded" width="320" height="240">
           <div class="mt-2 flex gap-3">
-            <button type="button" onclick="takePhotoLocal()" class="bg-blue-500 text-white px-3 py-1 rounded">撮影</button>
-            <button type="button" onclick="savePhotoLocal()" class="bg-green-500 text-white px-3 py-1 rounded hidden" id="saveBtnLocal">保存</button>
-            <button type="button" onclick="retakePhotoLocal()" class="bg-yellow-500 text-white px-3 py-1 rounded hidden" id="retakeBtnLocal">もう一度</button>
+            <button type="button" onclick="takePhotoLocal()" id="captureBtnLocal" class="bg-blue-500 text-white px-3 py-1 rounded">撮影</button>
+            <button type="button" onclick="retakePhotoLocal()" id="retakeBtnLocal" class="bg-yellow-500 text-white px-3 py-1 rounded hidden">もう一度</button>
           </div>
           <input type="hidden" name="photo_data" id="photoDataLocal">
+          <input type="hidden" name="overwrite_photo" value="true">
         </div>
       </div>
 
       <div class="flex gap-2 justify-end pt-2">
         <button type="button" class="btn-neutral" onclick="closeModal('photoModal')">閉じる</button>
-        <button type="submit" class="btn-primary">保存</button>
+        <button type="submit" id="savePhotoBtnLocal" class="btn-primary hidden">更新</button>
       </div>
-    </form>
-  </div>
-</div>
+    </form>               
+  </div>                  
+</div>    
 
 {# 3) 良かったこと #}
 <div id="goodModal" class="modal hidden">
@@ -354,46 +357,117 @@
 
 {# 既存の睡眠円グラフのJS #}
 <script src="{% static 'logs/sleepClock.js' %}?v=2"></script>
-
 <script>
   // モーダル開閉
   function openModal(id){ document.getElementById(id).classList.remove('hidden'); }
-  function closeModal(id){ document.getElementById(id).classList.add('hidden'); }
+  function closeModal(id){ 
+    document.getElementById(id).classList.add('hidden'); 
+    
+    // カメラストリームを停止
+    if (videoStreamLocal) {
+      videoStreamLocal.getTracks().forEach(track => track.stop());
+      videoStreamLocal = null;
+    }
+    
+    // カメラコンテナをリセット
+    const container = document.getElementById('cameraContainerLocal');
+    const video = document.getElementById('videoLocal');
+    const capturedImage = document.getElementById('capturedImageLocal');
+    const captureBtn = document.getElementById('captureBtnLocal');
+    const retakeBtn = document.getElementById('retakeBtnLocal');
+    const saveBtn = document.getElementById('savePhotoBtnLocal'); // 追加
+    const photoDataInput = document.getElementById('photoDataLocal');
+    
+    if (container && video && capturedImage) {
+      container.classList.add('hidden');
+      video.classList.remove('hidden');
+      capturedImage.classList.add('hidden');
+      captureBtn.classList.remove('hidden');
+      retakeBtn.classList.add('hidden');
+      saveBtn?.classList.add('hidden');      // ← ここで隠す
+      if (photoDataInput) photoDataInput.value = ''; // 念のためクリア
+    }
+  }
 
   // 写真用カメラ（モーダル内スコープ）
-  let videoStreamLocal;
+  let videoStreamLocal = null;
+
   function openCameraLocal() {
-    document.getElementById('cameraContainerLocal').classList.remove('hidden');
+    const container = document.getElementById('cameraContainerLocal');
+    const video = document.getElementById('videoLocal');
+    
+    container.classList.remove('hidden');
+    
     navigator.mediaDevices.getUserMedia({ video: true })
       .then(stream => {
         videoStreamLocal = stream;
-        const video = document.getElementById('videoLocal');
         video.srcObject = stream;
       })
-      .catch(err => { alert('カメラにアクセスできません: ' + err.message); });
+      .catch(err => {
+        alert('カメラにアクセスできませんでした: ' + err);
+      });
   }
+
   function takePhotoLocal() {
     const video = document.getElementById('videoLocal');
     const canvas = document.getElementById('canvasLocal');
+    const capturedImage = document.getElementById('capturedImageLocal');
+    const photoDataInput = document.getElementById('photoDataLocal');
+    const captureBtn = document.getElementById('captureBtnLocal');
+    const retakeBtn = document.getElementById('retakeBtnLocal');
+    const saveBtn = document.getElementById('savePhotoBtnLocal');  // ← これがポイント
+    
     const context = canvas.getContext('2d');
-    canvas.classList.remove('hidden');
-    context.drawImage(video, 0, 0, canvas.width, canvas.height);
-    document.getElementById('saveBtnLocal').classList.remove('hidden');
-    document.getElementById('retakeBtnLocal').classList.remove('hidden');
-    video.pause();
+    context.drawImage(video, 0, 0, 320, 240);
+    
+    const imageData = canvas.toDataURL('image/png');
+    capturedImage.src = imageData;
+    photoDataInput.value = imageData;
+    
+    // UI更新
+    video.classList.add('hidden');
+    canvas.classList.add('hidden');   // 表示はimgに統一
+    capturedImage.classList.remove('hidden');
+    captureBtn.classList.add('hidden');
+    retakeBtn.classList.remove('hidden');
+    if (saveBtn) saveBtn.classList.remove('hidden');  // ← 保存ボタンを表示
+    
+    // カメラストリームを停止
+    if (videoStreamLocal) {
+      videoStreamLocal.getTracks().forEach(track => track.stop());
+      videoStreamLocal = null;
+    }
   }
-  function savePhotoLocal() {
-    const canvas = document.getElementById('canvasLocal');
-    const dataUrl = canvas.toDataURL('image/jpeg');
-    document.getElementById('photoDataLocal').value = dataUrl;
-    if (videoStreamLocal) { videoStreamLocal.getTracks().forEach(t => t.stop()); }
-    alert("画像をフォームに保存しました");
-  }
+
   function retakePhotoLocal() {
-    document.getElementById('canvasLocal').classList.add('hidden');
-    document.getElementById('saveBtnLocal').classList.add('hidden');
-    document.getElementById('retakeBtnLocal').classList.add('hidden');
-    const video = document.getElementById('videoLocal'); video.play();
+    const video = document.getElementById('videoLocal');
+    const capturedImage = document.getElementById('capturedImageLocal');
+    const photoDataInput = document.getElementById('photoDataLocal');
+    const captureBtn = document.getElementById('captureBtnLocal');
+    const retakeBtn = document.getElementById('retakeBtnLocal');
+    const saveBtn = document.getElementById('savePhotoBtnLocal'); // ← これを追加
+    
+    // UI更新
+    capturedImage.classList.add('hidden');
+    video.classList.remove('hidden');
+    captureBtn.classList.remove('hidden');
+    retakeBtn.classList.add('hidden');
+    if (saveBtn) saveBtn.classList.add('hidden');     // ← 再撮影では隠す
+    photoDataInput.value = '';
+    
+    // カメラ再起動
+    openCameraLocal();
   }
+
+  // 保存時バリデーション（念のため残す）
+  document.getElementById('savePhotoBtnLocal')?.addEventListener('click', function (e) {
+    const photoDataInput = document.getElementById('photoDataLocal');
+    if (!photoDataInput?.value) {
+      e.preventDefault();
+      alert('写真を撮影してください。');
+    }
+  });
+  
 </script>
+
 {% endblock %}
